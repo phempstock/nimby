@@ -1,0 +1,57 @@
+name: Tests and deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: curl, pdo_sqlite, pdo_mysql, mbstring
+
+      - name: Check PHP syntax
+        run: find . -name '*.php' -not -path './vendor/*' -print0 | xargs -0 -n1 php -l
+
+      - name: Run tests
+        run: php tests/run.php
+
+  # Copies the site to IONOS over SSH after the tests pass on main.
+  # Switched off until the repository variable DEPLOY_ENABLED is set to "true"
+  # (Settings > Secrets and variables > Actions > Variables) and these secrets exist:
+  #   IONOS_SSH_HOST, IONOS_SSH_USER, IONOS_SSH_KEY (private key),
+  #   IONOS_KNOWN_HOSTS (output of: ssh-keyscan <host>), IONOS_DEPLOY_PATH (e.g. nimby)
+  deploy:
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    concurrency: deploy-production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.IONOS_SSH_KEY }}" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          echo "${{ secrets.IONOS_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+
+      - name: Copy files to IONOS
+        # --delete keeps the server in step with the repository, but the P (protect)
+        # filters stop it removing the server's own config, cache and generated map data.
+        run: |
+          rsync -az --delete \
+            --filter='P /config.php' \
+            --filter='P /data/cache/' \
+            --filter='P /public/data/*.geojson' \
+            --filter='P /public/data/meta.json' \
+            --exclude='/.git/' --exclude='/.github/' --exclude='/tests/' \
+            -e "ssh -i ~/.ssh/id_deploy -o UserKnownHostsFile=$HOME/.ssh/known_hosts" \
+            ./ "${{ secrets.IONOS_SSH_USER }}@${{ secrets.IONOS_SSH_HOST }}:${{ secrets.IONOS_DEPLOY_PATH }}/"

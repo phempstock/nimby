@@ -1,0 +1,3 @@
+# Safety net: if the web server is ever pointed at the project root instead of
+# public/, refuse to serve anything (config.php, data/, bin/ ...).
+Require all denied
