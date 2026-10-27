@@ -90,7 +90,21 @@ On IONOS, plain `php` may be an old version; always use a `/usr/bin/php8.x` path
 php tests/run.php
 ```
 
-The tests use an in-memory SQLite database and a fake council server, so they need no network or MySQL. For a local trial run, point `config.php` at SQLite (`'dsn' => 'sqlite:/tmp/nimby.sqlite'`), then run `bin/migrate.php` and `bin/sync.php`.
+The tests use an in-memory SQLite database and a fake council server, so they need no network or MySQL.
+
+The map page has browser tests (Playwright and Chromium) against about 5,800 generated applications:
+
+```
+python3 tests/browser/make-data.py public/data
+php -S 127.0.0.1:8123 -t public &
+node tests/browser/map.test.js http://127.0.0.1:8123 public/data
+```
+
+GitHub Actions runs all of these on every push, and only deploys if they pass.
+
+### Third-party files
+
+Leaflet, marker clustering and the Alegreya Sans font are served from `public/vendor/`, so visitors' browsers contact no other servers apart from OpenStreetMap for map tiles. To update them, run **Actions > Update vendored libraries**; versions and checksums are recorded in `public/vendor/VERSIONS.txt`. For a local trial run, point `config.php` at SQLite (`'dsn' => 'sqlite:/tmp/nimby.sqlite'`), then run `bin/migrate.php` and `bin/sync.php`.
 
 ## Safeguards
 
@@ -103,8 +117,8 @@ The tests use an in-memory SQLite database and a fake council server, so they ne
 ## Roadmap
 
 - [x] Phase 0: data checks
-- [x] Phase 1: nightly sync (this release; still to be installed on IONOS)
-- [ ] Phase 2: map page (Leaflet + OpenStreetMap, pins, popups, filters, deep links `/?app=26-01848-PWC`)
+- [x] Phase 1: nightly sync, live on IONOS since 27 October 2026
+- [x] Phase 2: map page (Leaflet + OpenStreetMap, pins by status, popups, filters, list, deep links `/?app=26-01848-PWC`)
 - [ ] Phase 3: subscriptions and the Monday digest of new applications
 - [ ] Phase 4: launch
 

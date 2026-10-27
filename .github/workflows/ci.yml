@@ -58,11 +58,33 @@ jobs:
           NIMBY_TEST_PASSWORD: test
         run: php tests/run.php
 
-  # Copies the site to IONOS after both test jobs pass on main (see deploy/ionos.sh).
+  # The map page in a real browser (Chromium), against full-size test data.
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+
+      - name: Install Playwright
+        run: |
+          npm install --no-save --no-package-lock playwright@1.63.0
+          npx playwright install --with-deps chromium
+
+      - name: Run map tests
+        run: |
+          python3 tests/browser/make-data.py public/data
+          php -S 127.0.0.1:8123 -t public > "$RUNNER_TEMP/php.log" 2>&1 &
+          for i in $(seq 1 50); do curl -s -o /dev/null http://127.0.0.1:8123/ && break; sleep 0.2; done
+          node tests/browser/map.test.js http://127.0.0.1:8123 public/data
+
+  # Copies the site to IONOS after all test jobs pass on main (see deploy/ionos.sh).
   # Skipped, with a notice, until the IONOS_SSH_HOST, IONOS_SSH_USER and
   # IONOS_SSH_KEY repository secrets exist.
   deploy:
-    needs: [test, test-mariadb]
+    needs: [test, test-mariadb, browser]
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     concurrency: ionos-server

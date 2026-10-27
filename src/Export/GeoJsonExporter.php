@@ -48,7 +48,8 @@ final class GeoJsonExporter
                     'decision'      => $r['decision'],
                     'decision_date' => $r['decision_date'],
                     'category'      => Status::category($r['status'], $r['decision'], $r['decision_date']),
-                    'first_seen'    => substr((string) $r['first_seen_at'], 0, 10),
+                    // Null for history loaded on the first run, so the map never badges it as new.
+                    'first_seen'    => (int) $r['backfilled'] === 1 ? null : substr((string) $r['first_seen_at'], 0, 10),
                     'url'           => $this->publicAccessBaseUrl . rawurlencode((string) $r['keyval']),
                 ],
             ];

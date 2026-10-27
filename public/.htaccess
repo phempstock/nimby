@@ -17,6 +17,14 @@ Require all granted
     <FilesMatch "\.(geojson|json)$">
         Header set Cache-Control "public, max-age=3600"
     </FilesMatch>
+    # Page, script and styles: always check for a newer version (cheap 304 if unchanged).
+    <FilesMatch "\.(html|js|css)$">
+        Header set Cache-Control "no-cache"
+    </FilesMatch>
+    # Third-party files and fonts change only when re-vendored.
+    <FilesMatch "\.(woff2)$">
+        Header set Cache-Control "public, max-age=2592000"
+    </FilesMatch>
 </IfModule>
 
 # Never serve half-written files from the sync job.

@@ -179,6 +179,7 @@ test('First run back-fills and writes the map files', function () {
     check($first['geometry']['coordinates'] === [-1.16014, 52.95141], 'GeoJSON coordinates are [lng, lat]');
     check($first['properties']['url'] === 'https://publicaccess.nottinghamcity.gov.uk/online-applications/applicationDetails.do?activeTab=summary&keyVal=TN0707LYJC500', 'council link uses KEYVAL');
     check($first['properties']['category'] === 'pending' && $first['properties']['trees'] === true, 'category and tree flag');
+    check($first['properties']['first_seen'] === null, 'back-filled history has no first-seen date on the map');
 
     $meta = readJson($dir . '/public/meta.json');
     check($meta['applications'] === 5 && $meta['synced_at'] === '2026-10-26 05:00:00Z', 'meta.json written');
@@ -227,6 +228,8 @@ test('Second run records changes, new and removed applications', function () {
     $geo = readJson($dir . '/public/applications.geojson');
     $refs = array_map(fn($f) => $f['properties']['ref'], $geo['features']);
     check(count($refs) === 5 && in_array('26/01900/PFUL3', $refs, true) && !in_array('26/01821/5DAY', $refs, true), 'map shows new, hides removed');
+    $newPin = array_values(array_filter($geo['features'], fn($f) => $f['properties']['ref'] === '26/01900/PFUL3'))[0];
+    check($newPin['properties']['first_seen'] === '2026-10-27', 'genuinely new application carries its first-seen date');
 
     $gets = array_filter(array_slice($http->requests, $requestsAfterFirst), fn($r) => str_contains($r[1], 'MapServer/49'));
     check(count($gets) === 0, 'boundary reused from cache on later runs');

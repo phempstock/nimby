@@ -1,0 +1,368 @@
+/* NIMBY – Planning watch for The Park
+   Railing green and limestone, with pending applications lit like the estate's gas lamps. */
+
+@font-face { font-family: "Alegreya Sans"; font-style: normal; font-weight: 400; font-display: swap;
+  src: url("../vendor/fonts/alegreya-sans-latin-400-normal.woff2") format("woff2"); }
+@font-face { font-family: "Alegreya Sans"; font-style: italic; font-weight: 400; font-display: swap;
+  src: url("../vendor/fonts/alegreya-sans-latin-400-italic.woff2") format("woff2"); }
+@font-face { font-family: "Alegreya Sans"; font-style: normal; font-weight: 500; font-display: swap;
+  src: url("../vendor/fonts/alegreya-sans-latin-500-normal.woff2") format("woff2"); }
+@font-face { font-family: "Alegreya Sans"; font-style: normal; font-weight: 700; font-display: swap;
+  src: url("../vendor/fonts/alegreya-sans-latin-700-normal.woff2") format("woff2"); }
+@font-face { font-family: "Alegreya Sans"; font-style: normal; font-weight: 800; font-display: swap;
+  src: url("../vendor/fonts/alegreya-sans-latin-800-normal.woff2") format("woff2"); }
+
+:root {
+  color-scheme: light;
+  --railing: #1f3d34;      /* Victorian park-railing green */
+  --railing-soft: #2f5a4c;
+  --limestone: #f2f3ef;
+  --paper: #ffffff;
+  --ink: #1d2925;
+  --muted: #56635e;
+  --rule: #d6dbd4;
+  --gas: #e3a72f;          /* pending: gaslight */
+  --gas-glow: rgba(227, 167, 47, 0.5);
+  --granted: #3d7a5c;
+  --refused: #a5402d;      /* Nottingham red brick */
+  --withdrawn: #8b9490;
+  --other: #6b5a98;
+  --focus: #0b63c4;
+  --radius: 6px;
+  --panel-width: 25rem;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--limestone);
+  color: var(--ink);
+  font: 400 1.0625rem/1.45 "Alegreya Sans", "Gill Sans", "Segoe UI", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+
+.skip {
+  position: absolute; left: 0.5rem; top: -3rem; z-index: 2000;
+  background: var(--paper); color: var(--ink); padding: 0.5rem 0.75rem; border-radius: var(--radius);
+}
+.skip:focus { top: 0.5rem; }
+
+/* ---------- Layout ---------- */
+
+.app {
+  display: grid;
+  grid-template-columns: var(--panel-width) 1fr;
+  grid-template-rows: auto 1fr;
+  grid-template-areas: "masthead map" "panel map";
+  height: 100dvh;
+}
+
+.masthead { grid-area: masthead; }
+.map-wrap { grid-area: map; position: relative; min-height: 0; }
+.panel { grid-area: panel; overflow-y: auto; border-right: 1px solid var(--rule); background: var(--limestone); }
+.map { position: absolute; inset: 0; background: #e8ebe5; }
+
+@media (max-width: 760px) {
+  .app {
+    display: block;
+    height: auto;
+  }
+  .map-wrap { height: 62vh; height: 62dvh; }
+  .panel { overflow: visible; border-right: 0; }
+}
+
+/* ---------- Masthead ---------- */
+
+.masthead {
+  background: var(--railing);
+  color: var(--limestone);
+  padding: 1.1rem 1.5rem 1rem;
+  border-right: 1px solid var(--railing);
+}
+
+.wordmark {
+  margin: 0;
+  font-weight: 800;
+  font-size: 2.35rem;
+  line-height: 1;
+  letter-spacing: 0.08em;
+}
+
+.strap {
+  margin: 0.3rem 0 0;
+  font-size: 1.2rem;
+  font-weight: 500;
+}
+
+.fresh {
+  margin: 0.6rem 0 0;
+  font-size: 0.95rem;
+  color: #c9d6cf;
+}
+
+/* ---------- Filters ---------- */
+
+.filters {
+  padding: 1.1rem 1.5rem 0.6rem;
+  display: grid;
+  gap: 0.95rem;
+}
+
+.field { margin: 0; padding: 0; border: 0; min-width: 0; }
+
+.field > label, .field > legend {
+  display: block;
+  font-weight: 700;
+  font-size: 0.95rem;
+  margin: 0 0 0.3rem;
+  padding: 0;
+}
+
+input[type="search"], select {
+  width: 100%;
+  font: inherit;
+  font-size: 1rem;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid #b9c1bb;
+  border-radius: var(--radius);
+  padding: 0.5rem 0.65rem;
+  min-height: 2.6rem;
+}
+
+select {
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: calc(100% - 1.1rem) 52%, calc(100% - 0.75rem) 52%;
+  background-size: 0.35rem 0.35rem;
+  background-repeat: no-repeat;
+  padding-right: 2rem;
+}
+
+input[type="search"]::placeholder { color: #7d8984; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+
+.chip { position: relative; }
+.chip input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.chip > span {
+  display: inline-flex; align-items: center; gap: 0.45rem;
+  padding: 0.3rem 0.7rem 0.3rem 0.55rem;
+  border: 1px solid #b9c1bb;
+  border-radius: 999px;
+  background: var(--paper);
+  font-size: 0.95rem;
+  cursor: pointer;
+  user-select: none;
+}
+.chip > input:not(:checked) + span { background: transparent; color: var(--muted); border-style: dashed; }
+.chip > input:not(:checked) + span .dot { opacity: 0.35; box-shadow: none; }
+.chip > input:focus-visible + span { outline: 3px solid var(--focus); outline-offset: 2px; }
+.chip .count, .toggle .count { color: var(--muted); font-variant-numeric: tabular-nums; }
+
+.toggle { display: flex; align-items: center; gap: 0.55rem; font-size: 1rem; cursor: pointer; }
+.toggle input { width: 1.15rem; height: 1.15rem; margin: 0; accent-color: var(--railing); }
+
+/* ---------- Status dots (shared by chips, list and popups) ---------- */
+
+.dot {
+  flex: none;
+  width: 0.75rem; height: 0.75rem;
+  border-radius: 50%;
+  background: var(--c);
+  border: 1.5px solid var(--paper);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.18);
+}
+.cat-pending   { --c: var(--gas); }
+.cat-granted   { --c: var(--granted); }
+.cat-refused   { --c: var(--refused); }
+.cat-withdrawn { --c: var(--withdrawn); }
+.cat-other     { --c: var(--other); }
+.dot.cat-pending { box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.12), 0 0 6px 2px var(--gas-glow); }
+
+/* ---------- Results list ---------- */
+
+.results { padding: 0.4rem 0 1rem; outline: none; }
+
+.results-heading {
+  margin: 0;
+  padding: 0.6rem 1.5rem;
+  font-size: 1rem;
+  font-weight: 700;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  background: var(--limestone);
+  position: sticky; top: 0; z-index: 1;
+}
+.results-heading .sub { font-weight: 400; color: var(--muted); }
+
+.list { list-style: none; margin: 0; padding: 0; }
+
+.item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  padding: 0.75rem 1.5rem 0.8rem;
+  cursor: pointer;
+}
+.item:hover { background: #e9ece6; }
+.item[aria-current="true"] { background: var(--paper); box-shadow: inset 4px 0 0 var(--railing); }
+
+.item-top { display: flex; align-items: baseline; justify-content: space-between; gap: 0.75rem; }
+.item-address { font-weight: 700; font-size: 1.05rem; line-height: 1.25; }
+.item-date { flex: none; font-size: 0.9rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.item-proposal {
+  margin: 0.2rem 0 0.35rem;
+  color: #34413c;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.item-meta { display: flex; align-items: center; gap: 0.45rem; font-size: 0.92rem; color: var(--muted); }
+.item-meta .ref { margin-left: auto; font-variant-numeric: tabular-nums; }
+
+.badge-new {
+  display: inline-block;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #5a3d00;
+  background: #fbe7b5;
+  border-radius: 999px;
+  padding: 0.05rem 0.5rem;
+  margin-left: 0.4rem;
+  vertical-align: 0.1em;
+}
+
+.empty { padding: 1.2rem 1.5rem; color: var(--muted); }
+.empty strong { color: var(--ink); }
+
+.more {
+  display: block;
+  margin: 0.9rem 1.5rem 0;
+  font: inherit; font-weight: 700;
+  color: var(--railing);
+  background: var(--paper);
+  border: 1px solid #b9c1bb;
+  border-radius: var(--radius);
+  padding: 0.5rem 0.9rem;
+  cursor: pointer;
+}
+
+.credits { padding: 0.5rem 1.5rem 1.5rem; font-size: 0.88rem; color: var(--muted); }
+.credits p { margin: 0 0 0.6rem; max-width: 34rem; }
+
+.notice {
+  position: absolute; left: 50%; top: 0.75rem; transform: translateX(-50%);
+  z-index: 1000;
+  max-width: min(32rem, calc(100% - 2rem));
+  margin: 0;
+  background: var(--paper);
+  border-left: 4px solid var(--refused);
+  border-radius: var(--radius);
+  padding: 0.6rem 0.9rem;
+  box-shadow: 0 2px 8px rgba(20, 35, 30, 0.2);
+}
+
+/* ---------- Map pins ---------- */
+
+.pin { background: none; border: 0; }
+.pin span {
+  display: block;
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: var(--c);
+  border: 2px solid var(--paper);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  transition: transform 0.12s ease-out;
+}
+/* The gas lamps: anything still awaiting a decision glows. */
+.pin.cat-pending span {
+  box-shadow: 0 0 0 1px rgba(90, 60, 0, 0.35), 0 0 10px 5px var(--gas-glow), 0 0 22px 8px rgba(227, 167, 47, 0.22);
+}
+.pin.is-new span { width: 20px; height: 20px; margin: -2px; border-width: 3px; }
+.pin.is-active span { transform: scale(1.45); }
+.pin:focus-visible { outline: none; }
+.pin:focus-visible span { outline: 3px solid var(--focus); outline-offset: 2px; }
+
+.cluster { background: none; }
+.cluster div {
+  display: grid; place-items: center;
+  width: 100%; height: 100%;
+  border-radius: 50%;
+  background: var(--railing);
+  color: var(--limestone);
+  font-weight: 700;
+  font-size: 0.95rem;
+  border: 2px solid var(--paper);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+/* A small lit lamp on the cluster: how many of its applications are pending. */
+.cluster b {
+  position: absolute; top: -7px; right: -9px;
+  min-width: 20px; height: 20px; padding: 0 5px;
+  display: grid; place-items: center;
+  border-radius: 10px;
+  background: var(--gas);
+  color: #3a2800;
+  font-size: 0.78rem; font-weight: 800; line-height: 1;
+  border: 2px solid var(--paper);
+  box-shadow: 0 0 8px 3px var(--gas-glow);
+}
+
+/* Soften everything outside the conservation area */
+.outside { pointer-events: none; }
+
+/* ---------- Popups ---------- */
+
+.leaflet-container { font: inherit; }
+.leaflet-popup-content-wrapper { border-radius: var(--radius); box-shadow: 0 3px 14px rgba(20, 35, 30, 0.28); }
+.leaflet-popup-content { margin: 1rem 1.1rem 0.95rem; width: min(22rem, 78vw) !important; font-size: 1rem; line-height: 1.42; }
+.leaflet-container a.leaflet-popup-close-button { width: 2rem; height: 2rem; font-size: 1.5rem; line-height: 1.8rem; color: var(--muted); }
+
+.card-address { margin: 0 1.5rem 0.1rem 0; font-size: 1.2rem; font-weight: 700; line-height: 1.2; }
+.card-type { margin: 0 0 0.6rem; color: var(--muted); font-size: 0.95rem; }
+.card-proposal { margin: 0 0 0.75rem; }
+.card-proposal .more-text { color: var(--muted); font-style: italic; }
+
+.facts { display: grid; grid-template-columns: auto 1fr; gap: 0.2rem 0.9rem; margin: 0 0 0.9rem; font-size: 0.95rem; }
+.facts dt { color: var(--muted); }
+.facts dd { margin: 0; font-variant-numeric: tabular-nums; }
+.status-line { display: inline-flex; align-items: center; gap: 0.4rem; font-weight: 700; }
+
+.card-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; }
+.btn-council {
+  display: inline-block;
+  background: var(--railing);
+  color: var(--limestone) !important;
+  text-decoration: none;
+  font-weight: 700;
+  padding: 0.5rem 0.85rem;
+  border-radius: var(--radius);
+}
+.btn-council:hover { background: var(--railing-soft); }
+.btn-copy {
+  font: inherit; font-size: 0.95rem;
+  color: var(--railing);
+  background: none; border: 0; padding: 0.25rem 0;
+  text-decoration: underline; text-underline-offset: 0.18em;
+  cursor: pointer;
+}
+
+.leaflet-control-attribution { font-size: 0.75rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pin span { transition: none; }
+}
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
