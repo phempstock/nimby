@@ -63,13 +63,18 @@ final class ApplicationRecord
         return gmdate('Y-m-d', (int) floor(((float) $ms) / 1000));
     }
 
-    /** Trim, normalise line endings and treat empty strings as null. */
+    /**
+     * Trim, normalise line endings, replace stray control characters (the council
+     * data contains some, e.g. "Flat 1 \x16 2") and treat empty strings as null.
+     */
     private static function text(mixed $value): ?string
     {
         if ($value === null) {
             return null;
         }
-        $s = trim(str_replace(["\r\n", "\r"], "\n", (string) $value));
+        $s = str_replace(["\r\n", "\r"], "\n", (string) $value);
+        $s = (string) preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', ' ', $s);
+        $s = trim((string) preg_replace('/[ \t]{2,}/', ' ', $s));
         return $s === '' ? null : $s;
     }
 }

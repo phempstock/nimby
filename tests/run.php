@@ -145,6 +145,12 @@ test('Record normalisation', function () {
     check($r['address'] === 'Penrhyn House, Clumber Road East, Nottingham, NG7 1BD', 'address trimmed');
     check(abs($r['lat'] - 52.952) < 1e-9 && abs($r['lng'] + 1.161) < 1e-9, 'coordinates mapped x=lng, y=lat');
     check(ApplicationRecord::fromFeature(['attributes' => ['APP_REF' => '26/1/X']]) === null, 'feature with no key is rejected');
+    $messy = sampleFeatures()[0];
+    $messy['attributes']['APP_ADDRESS'] = "Flat 1 \x16 2, 19 Lenton Road, Nottingham";
+    $messy['attributes']['PROPOSAL'] = "Line one\r\nLine  two\x07";
+    $m = ApplicationRecord::fromFeature($messy);
+    check($m['address'] === 'Flat 1 2, 19 Lenton Road, Nottingham', 'control characters removed from addresses (' . json_encode($m['address']) . ')');
+    check($m['proposal'] === "Line one\nLine two", 'line breaks kept, control characters and doubled spaces removed (' . json_encode($m['proposal']) . ')');
 });
 
 test('Status categories, types and slugs', function () {
