@@ -31,7 +31,7 @@ redact() {
     -e 's#/(kunden|homepages)/[^ "]*#[server path]#g' \
     -e 's/db[0-9]+\.hosting-data\.io/[db host]/g' \
     -e 's/[a-z0-9.-]+\.1and1-data\.host/[ssh host]/g' \
-    -e 's/\b(dbu|dbs|acc)[0-9]+\b/***/g'
+    -e 's/\b(dbu|dbs|acc|u)[0-9]{6,}\b/***/g'
 }
 
 ssh_opts=(-i "$KEY" -o "UserKnownHostsFile=$KNOWN" -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=20 -o LogLevel=ERROR)
