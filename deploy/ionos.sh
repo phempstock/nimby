@@ -37,13 +37,15 @@ redact() {
 ssh_opts=(-i "$KEY" -o "UserKnownHostsFile=$KNOWN" -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=20 -o LogLevel=ERROR)
 remote() { ssh "${ssh_opts[@]}" "$SSH_USER@$SSH_HOST" "$@"; }
 
-# Run a remote command and turn each line of its output into a notice.
+# Run a remote command and show its whole output as ONE multi-line notice
+# (GitHub keeps only 10 notices per step, so one per line would be cut off).
 report() {
   local status=0
   remote "$1" > "$SSH_DIR/out" 2>&1 || status=$?
-  redact < "$SSH_DIR/out" | while IFS= read -r line; do
-    [ -n "$line" ] && note "$line"
-  done
+  local body
+  body="$(redact < "$SSH_DIR/out" | grep -v '^[[:space:]]*$' | sed -e 's/%/%25/g' | awk 'BEGIN{ORS="%0A"} {print}' | sed -e 's/%0A$//')"
+  [ -n "$body" ] && note "$body"
+  echo "$body" | sed 's/%0A/\n/g; s/%25/%/g'   # also readable in the step log
   return "$status"
 }
 
