@@ -23,13 +23,41 @@ jobs:
       - name: Run tests
         run: php tests/run.php
 
+  # The same tests against MariaDB 11, the database IONOS provides.
+  test-mariadb:
+    runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:11
+        env:
+          MARIADB_ROOT_PASSWORD: test
+          MARIADB_DATABASE: nimby_test
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: curl, pdo_mysql, mbstring
+
+      - name: Run tests on MariaDB
+        env:
+          NIMBY_TEST_DSN: mysql:host=127.0.0.1;port=3306;dbname=nimby_test;charset=utf8mb4
+          NIMBY_TEST_USER: root
+          NIMBY_TEST_PASSWORD: test
+        run: php tests/run.php
+
   # Copies the site to IONOS over SSH after the tests pass on main.
   # Switched off until the repository variable DEPLOY_ENABLED is set to "true"
   # (Settings > Secrets and variables > Actions > Variables) and these secrets exist:
   #   IONOS_SSH_HOST, IONOS_SSH_USER, IONOS_SSH_KEY (private key),
   #   IONOS_KNOWN_HOSTS (output of: ssh-keyscan <host>), IONOS_DEPLOY_PATH (e.g. nimby)
   deploy:
-    needs: test
+    needs: [test, test-mariadb]
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.DEPLOY_ENABLED == 'true'
     runs-on: ubuntu-latest
     concurrency: deploy-production

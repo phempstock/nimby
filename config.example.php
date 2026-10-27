@@ -6,7 +6,7 @@
  * and fill in the real values. config.php is ignored by git.
  */
 return [
-    // Database (IONOS: Hosting > Databases). 'dsn' examples:
+    // Database (IONOS: Hosting > Databases). MySQL and MariaDB both use 'mysql:'. Examples:
     //   mysql:host=db5000000000.hosting-data.io;dbname=dbs0000000;charset=utf8mb4
     //   sqlite:/path/to/nimby.sqlite   (local development only)
     'db' => [

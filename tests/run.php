@@ -90,8 +90,15 @@ function sampleFeatures(): array
 /** Fresh database, temporary directories and a sync job wired to the fake server. */
 function harness(): array
 {
-    $pdo = Database::connect(['dsn' => 'sqlite::memory:']);
-    Database::migrate($pdo, dirname(__DIR__) . '/migrations/sqlite/001_applications.sql');
+    $pdo = testConnection();
+    $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+    if (getenv('NIMBY_TEST_DSN')) {
+        // Shared test database: start every test from empty tables.
+        foreach (['application_events', 'applications', 'sync_runs'] as $table) {
+            $pdo->exec("DROP TABLE IF EXISTS {$table}");
+        }
+    }
+    Database::migrate($pdo, dirname(__DIR__) . '/migrations/' . ($driver === 'sqlite' ? 'sqlite' : 'mysql') . '/001_applications.sql');
     $dir = sys_get_temp_dir() . '/nimby-test-' . bin2hex(random_bytes(4));
     mkdir($dir . '/public', 0755, true);
     $http = new FakeHttpClient();
@@ -108,6 +115,24 @@ function readJson(string $path): array
 {
     return json_decode((string) file_get_contents($path), true);
 }
+
+/**
+ * In-memory SQLite by default. Set NIMBY_TEST_DSN (plus NIMBY_TEST_USER and
+ * NIMBY_TEST_PASSWORD) to run the same tests against MySQL or MariaDB.
+ */
+function testConnection(): PDO
+{
+    return Database::connect([
+        'dsn'      => getenv('NIMBY_TEST_DSN') ?: 'sqlite::memory:',
+        'user'     => getenv('NIMBY_TEST_USER') ?: null,
+        'password' => getenv('NIMBY_TEST_PASSWORD') ?: null,
+    ]);
+}
+
+$probe = testConnection();
+$probeDriver = $probe->getAttribute(PDO::ATTR_DRIVER_NAME);
+echo 'Database: ', $probeDriver, ' ', $probe->query($probeDriver === 'sqlite' ? 'SELECT sqlite_version()' : 'SELECT VERSION()')->fetchColumn(), "\n\n";
+$probe = null;
 
 // ---------------------------------------------------------------------------
 

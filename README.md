@@ -34,7 +34,7 @@ config.example.php   copy to config.php on the server (never committed)
 
 ## Setting up on IONOS
 
-1. **Database.** In the IONOS control panel, create a MySQL database. Note its host, name and user.
+1. **Database.** In the IONOS control panel, create a MariaDB (or MySQL) database. The tests run against MariaDB 11 on every push. Note its host, name and user.
 2. **Subdomain.** Create `nimby.parknews.co.uk`, point it at the folder `nimby/public`, and switch on the free SSL certificate.
 3. **Upload the code.** Either set up the GitHub deployment below, or over SSH:
    ```
