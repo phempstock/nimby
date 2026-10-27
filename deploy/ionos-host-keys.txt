@@ -2,3 +2,4 @@
 # deploy/ionos.sh only connects if the server presents one of these keys.
 # Check each against the fingerprint your own computer shows the first time
 # you connect with ssh, before adding it here.
+SHA256:1gx2w8Rtv3wCgi7Jh8myf/KVd72cRQbow03UP8P095Q  ED25519, confirmed by Paul's own ssh client on 27 Oct 2026
