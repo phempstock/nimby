@@ -71,7 +71,7 @@
   function tidyAddress(address) {
     if (!address) return '';
     return address.split(',')
-      .map(function (part) { return part.trim(); })
+      .map(function (part) { return part.replace(/\s+/g, ' ').trim(); })
       .filter(function (part) { return part && !/^nottingham( city)?$/i.test(part); })
       .join(', ');
   }
@@ -125,6 +125,30 @@
   });
   map.addLayer(cluster);
 
+  // Fit the map to The Park once it has a real size. If the page loads while the map
+  // is hidden or has no size yet (a background tab, a phone turning sideways), Leaflet
+  // would otherwise zoom right in; the observer fits it as soon as it can be seen.
+  var parkBounds = null;
+  var fitted = false;
+
+  function fitPark() {
+    var size = map.getSize();
+    if (!parkBounds || size.x < 80 || size.y < 80) return false;
+    map.fitBounds(parkBounds, { padding: [24, 24] });
+    fitted = true;
+    return true;
+  }
+
+  if (window.ResizeObserver) {
+    new ResizeObserver(function () {
+      map.invalidateSize({ pan: false });
+      if (!fitted && fitPark()) {
+        var slug = state.active || state.pinned;
+        if (slug) openApp(slug, false);
+      }
+    }).observe(document.getElementById('map'));
+  }
+
   function drawBoundary(geojson) {
     var outline = L.geoJSON(geojson, {
       interactive: false,
@@ -144,9 +168,9 @@
     }).addTo(map);
     outline.bringToFront();
 
-    var bounds = outline.getBounds();
-    map.fitBounds(bounds, { padding: [24, 24] });
-    map.setMaxBounds(bounds.pad(1.5));
+    parkBounds = outline.getBounds();
+    map.setMaxBounds(parkBounds.pad(1.5));
+    fitPark();
   }
 
   // ---------- Applications ----------
@@ -451,10 +475,12 @@
       apply();
 
       if (state.pinned) {
-        if (!openApp(state.pinned, false)) {
+        if (!state.bySlug.has(state.pinned)) {
           showNotice('Application ' + requested + ' isn’t in the data for The Park. It may be outside the conservation area.');
           state.pinned = null;
           setActive(null);
+        } else if (fitted) {
+          openApp(state.pinned, false);
         }
       }
     })

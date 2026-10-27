@@ -108,6 +108,7 @@ const ready = p => p.waitForFunction(() => !/Loading/.test(document.getElementBy
   await p.fill('#q', 'clumber road east cherry');
   await p.waitForTimeout(500);
   check(/^1 application$/.test(await heading(p)), 'search with several words (' + await heading(p) + ')');
+  check(await p.$eval('#more', e => getComputedStyle(e).display) === 'none', '"Show more" is hidden when there is nothing more');
   await p.fill('#q', 'zzzz-nothing');
   await p.waitForTimeout(500);
   check(/Nothing matches/.test(await p.$eval('#list', e => e.textContent)), 'empty state explains what to do');
@@ -151,6 +152,24 @@ const ready = p => p.waitForFunction(() => !/Loading/.test(document.getElementBy
   check(await p.evaluate(() => window.__xss === undefined), 'no script ran from council text');
   check(/<img src=x/.test(await p.$eval('.card-proposal', e => e.textContent)), 'markup shown literally');
   check(await p.$('.card-proposal img') === null, 'no element created from council text');
+  await p.context().close();
+
+  console.log('- Map hidden while the page loads, then shown (background tab, phone rotation)');
+  p = await page(browser);
+  // Hidden by the stylesheet itself, so the map is hidden before any page script runs.
+  await p.route(BASE + '/assets/app.css', async route => {
+    const response = await route.fetch();
+    route.fulfill({ response, body: (await response.text()) + '\n.map-wrap { display: none; }' });
+  });
+  await p.goto(BASE + '/');
+  await p.waitForFunction(() => /Council data checked/.test(document.getElementById('fresh').textContent));
+  await p.waitForTimeout(300);
+  check(await p.$eval('.map-wrap', e => getComputedStyle(e).display) === 'none', 'map really was hidden during load');
+  await p.addStyleTag({ content: '.map-wrap { display: block !important; }' });
+  await p.waitForTimeout(1200);
+  const zooms = await p.$$eval('.leaflet-tile', ts => [...new Set(ts.map(t => Number((t.src.match(/\/(\d+)\/\d+\/\d+\.png/) || [])[1])))]);
+  check(zooms.length > 0 && Math.max(...zooms) <= 17, 'map fits The Park once it becomes visible (tile zoom ' + zooms.join(',') + ')');
+  check(!/^0 of/.test(await heading(p)), 'list shows applications after the map appears (' + await heading(p) + ')');
   await p.context().close();
 
   console.log('- Keyboard: Tab reaches a pin and Enter opens it');
