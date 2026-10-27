@@ -1,3 +1,8 @@
+# The project folder's own .htaccess denies all web access (protecting config.php
+# and data/). Apache applies that to sub-folders too, so re-allow this one: public/
+# is the only folder that should be served.
+Require all granted
+
 # Serve map data with the right type, compressed (about 4 MB raw, ~0.5 MB gzipped),
 # and cached briefly so a nightly refresh shows up within the hour.
 <IfModule mod_mime.c>
