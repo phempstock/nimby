@@ -1,0 +1,31 @@
+name: Update vendored libraries
+
+# Run by hand. Downloads Leaflet, marker clustering and the Alegreya Sans font
+# from npm into public/vendor/ and commits them, so the site serves them itself.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  vendor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Download libraries
+        run: bash deploy/vendor.sh
+
+      - name: Commit changes
+        run: |
+          git add public/vendor
+          if git diff --cached --quiet; then
+            echo "::notice title=Vendor::No changes"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Update vendored libraries" -m "$(head -4 public/vendor/VERSIONS.txt | tail -3)"
+          git push
+          echo "::notice title=Vendor::Committed $(git rev-parse --short HEAD)"
