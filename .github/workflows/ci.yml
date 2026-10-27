@@ -9,19 +9,26 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php: ['8.2', '8.5']   # 8.5 is what the IONOS server runs
+    name: test (PHP ${{ matrix.php }})
     steps:
       - uses: actions/checkout@v5
 
       - uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.2'
+          php-version: ${{ matrix.php }}
           extensions: curl, pdo_sqlite, pdo_mysql, mbstring
+          ini-values: error_reporting=E_ALL, display_errors=On
 
       - name: Check PHP syntax
         run: find . -name '*.php' -not -path './vendor/*' -print0 | xargs -0 -n1 php -l
 
-      - name: Run tests
-        run: php tests/run.php
+      - name: Run tests (fail on any warning or deprecation)
+        run: |
+          php tests/run.php 2>&1 | tee test-output.txt
+          if grep -E "(Deprecated|Warning|Notice):" test-output.txt; then exit 1; fi
 
   # The same tests against MariaDB 11, the database IONOS provides.
   test-mariadb:
@@ -41,7 +48,7 @@ jobs:
 
       - uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.2'
+          php-version: '8.5'
           extensions: curl, pdo_mysql, mbstring
 
       - name: Run tests on MariaDB

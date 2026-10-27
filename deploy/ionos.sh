@@ -77,12 +77,16 @@ connect() {
 }
 
 php_bin() {
-  remote 'ls -1 /usr/bin/php8.* 2>/dev/null | grep -E "/php8\.[0-9]+$" | sort -V | tail -1'
+  # IONOS ships CGI builds as /usr/bin/php8.x and command-line builds as /usr/bin/php8.x-cli.
+  # Take the newest PHP 8 binary that really is the command-line build.
+  remote 'for p in $(ls -1 /usr/bin/php8.* 2>/dev/null | grep -E "/php8\.[0-9]+(-cli)?$" | sort -V -r); do
+            if [ "$("$p" -r "echo PHP_SAPI;" 2>/dev/null)" = cli ]; then echo "$p"; break; fi
+          done'
 }
 
 need_php() {
   PHP="$(php_bin)"
-  [ -n "$PHP" ] || fail "No PHP 8 found in /usr/bin on the server"
+  [ -n "$PHP" ] || fail "No command-line PHP 8 found in /usr/bin on the server"
 }
 
 need_config() {
