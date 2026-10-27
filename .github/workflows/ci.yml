@@ -51,35 +51,25 @@ jobs:
           NIMBY_TEST_PASSWORD: test
         run: php tests/run.php
 
-  # Copies the site to IONOS over SSH after the tests pass on main.
-  # Switched off until the repository variable DEPLOY_ENABLED is set to "true"
-  # (Settings > Secrets and variables > Actions > Variables) and these secrets exist:
-  #   IONOS_SSH_HOST, IONOS_SSH_USER, IONOS_SSH_KEY (private key),
-  #   IONOS_KNOWN_HOSTS (output of: ssh-keyscan <host>), IONOS_DEPLOY_PATH (e.g. nimby)
+  # Copies the site to IONOS after both test jobs pass on main (see deploy/ionos.sh).
+  # Skipped, with a notice, until the IONOS_SSH_HOST, IONOS_SSH_USER and
+  # IONOS_SSH_KEY repository secrets exist.
   deploy:
     needs: [test, test-mariadb]
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.DEPLOY_ENABLED == 'true'
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
-    concurrency: deploy-production
+    concurrency: ionos-server
+    env:
+      SSH_HOST: ${{ secrets.IONOS_SSH_HOST }}
+      SSH_USER: ${{ secrets.IONOS_SSH_USER }}
+      SSH_KEY: ${{ secrets.IONOS_SSH_KEY }}
     steps:
       - uses: actions/checkout@v5
 
-      - name: Set up SSH
+      - name: Deploy to IONOS
         run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.IONOS_SSH_KEY }}" > ~/.ssh/id_deploy
-          chmod 600 ~/.ssh/id_deploy
-          echo "${{ secrets.IONOS_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
-
-      - name: Copy files to IONOS
-        # --delete keeps the server in step with the repository, but the P (protect)
-        # filters stop it removing the server's own config, cache and generated map data.
-        run: |
-          rsync -az --delete \
-            --filter='P /config.php' \
-            --filter='P /data/cache/' \
-            --filter='P /public/data/*.geojson' \
-            --filter='P /public/data/meta.json' \
-            --exclude='/.git/' --exclude='/.github/' --exclude='/tests/' \
-            -e "ssh -i ~/.ssh/id_deploy -o UserKnownHostsFile=$HOME/.ssh/known_hosts" \
-            ./ "${{ secrets.IONOS_SSH_USER }}@${{ secrets.IONOS_SSH_HOST }}:${{ secrets.IONOS_DEPLOY_PATH }}/"
+          if [ -z "$SSH_HOST" ] || [ -z "$SSH_USER" ] || [ -z "$SSH_KEY" ]; then
+            echo "::notice title=NIMBY server::Deployment skipped: IONOS secrets are not set yet"
+            exit 0
+          fi
+          bash deploy/ionos.sh deploy

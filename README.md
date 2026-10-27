@@ -34,40 +34,55 @@ config.example.php   copy to config.php on the server (never committed)
 
 ## Setting up on IONOS
 
-1. **Database.** In the IONOS control panel, create a MariaDB (or MySQL) database. The tests run against MariaDB 11 on every push. Note its host, name and user.
-2. **Subdomain.** Create `nimby.parknews.co.uk`, point it at the folder `nimby/public`, and switch on the free SSL certificate.
-3. **Upload the code.** Either set up the GitHub deployment below, or over SSH:
-   ```
-   git clone https://github.com/phempstock/nimby.git ~/nimby
-   ```
-4. **Configure.** Copy `config.example.php` to `config.php` in the `nimby` folder (not in `public/`) and fill in the database details.
-5. **Create the tables.**
-   ```
-   php ~/nimby/bin/migrate.php
-   ```
-6. **First sync.** This back-fills the full history; those applications are marked so they are never emailed.
-   ```
-   php ~/nimby/bin/sync.php
-   ```
-7. **Nightly cron.** Find the PHP binary with `ls /usr/bin/php*`, then `crontab -e` and add:
-   ```
-   MAILTO=nimby@parknews.co.uk
-   15 5 * * * /usr/bin/php8.3 $HOME/nimby/bin/sync.php > /dev/null
-   ```
-   Cron times are in the server's time zone, which may not be UK time. Successful runs are silent; failures are emailed by the script and by cron.
+Deployment and server tasks run from GitHub Actions over SSH (`deploy/ionos.sh`), so nothing needs typing on the server after the first connection.
 
-### Automatic deployment from GitHub
+### One-time steps
 
-`.github/workflows/ci.yml` runs the tests on every push. After the tests pass on `main`, it copies the site to IONOS with `rsync` over SSH. It never touches the server's `config.php`, cache or map data. To switch it on:
+1. **Deploy key.** On your own computer, create a key used only for deployment. Press Enter twice when asked for a passphrase:
+   ```
+   ssh-keygen -t ed25519 -f ~/.ssh/nimby_deploy -C nimby-github-deploy
+   ```
+2. **Authorise the key on IONOS.** This also creates the `nimby` folder. It asks for your SSH password once:
+   ```
+   cat ~/.ssh/nimby_deploy.pub | ssh USER@HOST "mkdir -p ~/.ssh ~/nimby && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
+   ```
+   The first time, ssh shows the server's `ED25519 key fingerprint is SHA256:...`. Add that fingerprint to `deploy/ionos-host-keys.txt`; the deploy script refuses any server whose key is not listed there.
+3. **config.php.** Copy `config.example.php` to `config.php`, fill in the database details and password, and upload it into the `nimby` folder (not `public/`):
+   ```
+   scp config.php USER@HOST:nimby/config.php
+   ```
+4. **GitHub secrets.** Under **Settings > Secrets and variables > Actions > New repository secret**, add:
+   - `IONOS_SSH_HOST`: the SSH host name
+   - `IONOS_SSH_USER`: the SSH user name
+   - `IONOS_SSH_KEY`: the whole of `~/.ssh/nimby_deploy` (the private key), including the BEGIN and END lines
 
-1. Create an SSH key pair for deployment and add the public key to `~/.ssh/authorized_keys` on IONOS.
-2. In GitHub, go to **Settings > Secrets and variables > Actions** and add these secrets:
-   - `IONOS_SSH_HOST`
-   - `IONOS_SSH_USER`
-   - `IONOS_SSH_KEY`: the private key
-   - `IONOS_KNOWN_HOSTS`: the output of `ssh-keyscan <host>`
-   - `IONOS_DEPLOY_PATH`: for example `nimby`
-3. Add a repository variable `DEPLOY_ENABLED` set to `true`.
+   The repository is public. Host names, user names and passwords belong in secrets or `config.php`, never in committed files.
+5. **Subdomain.** In the IONOS control panel, point `nimby.parknews.co.uk` at the webspace folder `/nimby/public` and switch on its SSL certificate.
+
+### Server tasks (Actions > Server tasks > Run workflow)
+
+| Task | What it does |
+| --- | --- |
+| `check` | Reports PHP version, rsync, cron, config and database status |
+| `deploy` | Copies the code to the server and updates the database tables |
+| `setup` | First-time setup: tables, first sync (back-fills history), nightly cron job at 05:17 server time |
+| `sync` | Runs the sync now and reports the result |
+
+Every push to `main` also deploys automatically once both test jobs pass. Deployment uses `rsync --delete`, but never touches the server's `config.php`, its `data/` folder (database cache and `sync.log`) or the generated map data. Without rsync it falls back to `tar`.
+
+Everything the scripts print appears in the public Actions log, so it is filtered to remove host names, user names, database names and server paths.
+
+### By hand over SSH
+
+```
+cd ~/nimby
+/usr/bin/php8.3 bin/migrate.php       # create or update tables
+/usr/bin/php8.3 bin/sync.php          # run the sync now
+/usr/bin/php8.3 bin/healthcheck.php   # status report
+tail data/cache/sync.log              # output of the nightly runs
+```
+
+On IONOS, plain `php` may be an old version; always use a `/usr/bin/php8.x` path.
 
 ## Development
 

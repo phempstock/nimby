@@ -1,0 +1,30 @@
+name: Server tasks
+
+# Run by hand from the Actions tab (or by Claude) to manage the IONOS server.
+on:
+  workflow_dispatch:
+    inputs:
+      task:
+        description: What to do on the IONOS server
+        type: choice
+        options:
+          - check
+          - deploy
+          - setup
+          - sync
+        default: check
+
+concurrency: ionos-server
+
+jobs:
+  run:
+    name: ${{ inputs.task }}
+    runs-on: ubuntu-latest
+    env:
+      SSH_HOST: ${{ secrets.IONOS_SSH_HOST }}
+      SSH_USER: ${{ secrets.IONOS_SSH_USER }}
+      SSH_KEY: ${{ secrets.IONOS_SSH_KEY }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Run ${{ inputs.task }}
+        run: bash deploy/ionos.sh "${{ inputs.task }}"

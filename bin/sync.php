@@ -46,7 +46,11 @@ try {
         exit(1);
     }
 
-    $pdo = Database::connect($config['db']);
+    try {
+        $pdo = Database::connect($config['db']);
+    } catch (PDOException $e) {
+        throw new RuntimeException('Could not connect to the database (' . Database::describeError($e) . ')');
+    }
     $council = new ArcGisClient(
         new CurlHttpClient((int) ($config['council']['timeout_seconds'] ?? 60)),
         $config['council']['planning_layer_url'],
@@ -62,8 +66,12 @@ try {
         (float) ($config['sync']['min_ratio_of_known'] ?? 0.8)
     );
 
+    // About 6,000 applications are held in memory during a run; allow headroom.
+    ini_set('memory_limit', '512M');
+
     $summary = $job->run(isset($options['refresh-boundary']));
     echo implode("\n", $summary['log']), "\n";
+    printf("Peak memory %d MB\n", (int) round(memory_get_peak_usage(true) / 1048576));
     exit(0);
 } catch (Throwable $e) {
     $lines = isset($job) ? $job->log() : ['FAILED: ' . $e->getMessage()];

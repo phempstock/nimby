@@ -19,8 +19,21 @@ if (PHP_SAPI !== 'cli') {
 require dirname(__DIR__) . '/bootstrap.php';
 
 $options = getopt('', ['config:']);
-$config = nimby_config($options['config'] ?? null);
-$pdo = Database::connect($config['db']);
+
+try {
+    $config = nimby_config($options['config'] ?? null);
+} catch (RuntimeException $e) {
+    fwrite(STDERR, $e->getMessage() . "\n");
+    exit(1);
+}
+
+try {
+    $pdo = Database::connect($config['db']);
+} catch (PDOException $e) {
+    fwrite(STDERR, 'Could not connect to the database (' . Database::describeError($e) . ").\n");
+    exit(1);
+}
+
 $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
 $dir = dirname(__DIR__) . '/migrations/' . ($driver === 'sqlite' ? 'sqlite' : 'mysql');
 
@@ -30,4 +43,4 @@ foreach ($files as $file) {
     Database::migrate($pdo, $file);
     echo 'Applied ', basename($file), "\n";
 }
-echo "Database is up to date ({$driver}).\n";
+echo "Database is up to date ({$driver} " . Database::version($pdo) . ").\n";

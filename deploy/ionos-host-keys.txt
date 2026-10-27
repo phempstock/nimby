@@ -1,0 +1,4 @@
+# SSH host key fingerprints of the IONOS web hosting server, one per line.
+# deploy/ionos.sh only connects if the server presents one of these keys.
+# Check each against the fingerprint your own computer shows the first time
+# you connect with ssh, before adding it here.
