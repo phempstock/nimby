@@ -54,7 +54,9 @@ try {
     $council = new ArcGisClient(
         new CurlHttpClient((int) ($config['council']['timeout_seconds'] ?? 60)),
         $config['council']['planning_layer_url'],
-        $config['council']['conservation_layer_url']
+        $config['council']['conservation_layer_url'],
+        $config['council']['geometry_service_url']
+            ?? 'https://maps164.nottinghamcity.gov.uk/server/rest/services/Utilities/Geometry/GeometryServer'
     );
     $job = new SyncJob(
         $council,
@@ -63,7 +65,9 @@ try {
         $pdo,
         $config['council']['conservation_area_name'],
         $cacheDir,
-        (float) ($config['sync']['min_ratio_of_known'] ?? 0.8)
+        (float) ($config['sync']['min_ratio_of_known'] ?? 0.8),
+        // Margin around the conservation area, agreed by the committee: 50 m.
+        (float) ($config['council']['buffer_metres'] ?? 50)
     );
 
     // About 6,000 applications are held in memory during a run; allow headroom.

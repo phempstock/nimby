@@ -68,6 +68,18 @@ const ready = p => p.waitForFunction(() => !/Loading/.test(document.getElementBy
   check(await p.$eval('.item-address', e => e.textContent.includes('Nottingham')) === false, 'list addresses tidied');
   await p.screenshot({ path: SHOTS + '/desktop.png' });
 
+  console.log('- The 50 m margin');
+  check(await p.$eval('#nearby-toggle', e => !e.hidden), 'neighbouring-properties toggle shown');
+  check(await p.$eval('#nearby-count', e => e.textContent) === '(' + EXPECT.nearby12 + ')', 'toggle counts margin applications (' + await p.$eval('#nearby-count', e => e.textContent) + ', expected ' + EXPECT.nearby12 + ')');
+  check(/within 50 m/.test(await p.$eval('#nearby-label', e => e.textContent)), 'toggle names the margin');
+  check(await p.$eval('#area-note', e => !e.hidden && /dashed line is The Park Conservation Area/.test(e.textContent)), 'outlines explained');
+  check(await p.$$eval('.leaflet-overlay-pane path', ps => ps.filter(q => q.getAttribute('stroke-dasharray')).length === 1 && ps.length >= 3), 'dashed conservation area, solid watch area and veil drawn');
+  await p.uncheck('#nearby');
+  await p.waitForTimeout(300);
+  check(await heading(p) === fmt(EXPECT.last12 - EXPECT.nearby12) + ' applications', 'unticking hides the margin applications (' + await heading(p) + ')');
+  await p.check('#nearby');
+  await p.waitForTimeout(300);
+
   console.log('- List click opens the popup and updates the address bar');
   const firstSlug = await p.$eval('.item', e => e.dataset.slug);
   await p.click('.item');
@@ -133,6 +145,14 @@ const ready = p => p.waitForFunction(() => !/Loading/.test(document.getElementBy
   check(/New this week/.test(await p.$eval('.leaflet-popup', e => e.textContent)), 'new application badged');
   check(/1 Clumber Road East, NG7 1BD/.test(await p.$eval('.card-address', e => e.textContent)), 'popup address tidied');
   await p.screenshot({ path: SHOTS + '/deeplink-stacked.png' });
+  await p.context().close();
+
+  console.log('- Application in the margin');
+  p = await page(browser);
+  await p.goto(BASE + '/?app=26-01870-PFUL3');
+  await p.waitForSelector('.leaflet-popup .card', { timeout: 10000 });
+  check(/Just outside The Park, within 50 m of the conservation area/.test(await p.$eval('.leaflet-popup', e => e.textContent)), 'popup says it is just outside The Park');
+  check(await p.$('.item[data-slug="26-01870-PFUL3"] .badge-nearby') !== null, 'list marks it as nearby');
   await p.context().close();
 
   console.log('- Unknown deep link');

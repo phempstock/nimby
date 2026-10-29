@@ -4,12 +4,13 @@ A map of planning applications in The Park Conservation Area, Nottingham, with a
 
 ## How it works
 
-Once a night, `bin/sync.php` asks Nottingham City Council's public map server for every planning application inside The Park Conservation Area. It stores them in MySQL, logs any status or decision changes, and writes `public/data/applications.geojson` for the map page. Visitors only ever load that static file; the council's server is queried once a day.
+Once a night, `bin/sync.php` asks Nottingham City Council's public map server for every planning application inside The Park Conservation Area or within 50 m of it, where development could also affect residents. The margin is `buffer_metres` in `config.php` (default 50; 0 for the conservation area only). If it changes, newly included applications more than 30 days old are added as history, so they are never emailed as new. It stores them in MySQL, logs any status or decision changes, and writes `public/data/applications.geojson` for the map page. Visitors only ever load that static file; the council's server is queried once a day.
 
 | Source | What we use |
 | --- | --- |
 | [Planning Application Points (layer 13)](https://maps164.nottinghamcity.gov.uk/server/rest/services/Core_services/Planning/MapServer/13) | Applications: reference, address, proposal, dates, status, decision, location |
 | [Conservation Areas (Local Plan layer 49)](https://maps164.nottinghamcity.gov.uk/server/rest/services/Core_services/Local_Plan_2020/MapServer/49) | The Park outline (`NAME = 'The Park'`, 57.8 ha), downloaded once and cached |
+| [Geometry service](https://maps164.nottinghamcity.gov.uk/server/rest/services/Utilities/Geometry/GeometryServer) | Draws the 50 m outline for the map (cached; if unavailable, the map keeps its last outline) |
 | [Public Access](https://publicaccess.nottinghamcity.gov.uk/online-applications/) | Each pin links to `applicationDetails.do?activeTab=summary&keyVal=<KEYVAL>` |
 
 ### What the data looks like (checked 26 October 2026)

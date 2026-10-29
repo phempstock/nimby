@@ -31,12 +31,14 @@ final class ApplicationStore
      *
      * @param array<int, array<string, mixed>> $records normalised by ApplicationRecord
      * @param string $now UTC timestamp 'Y-m-d H:i:s' for this run
-     * @param bool $backfill true on the very first run: rows are marked so they are never emailed
-     * @return array{inserted: int, updated: int, removed: int, restored: int}
+     * @param string|null $backfillBefore new rows received before this date ('Y-m-d') are marked
+     *        as history and never emailed: '9999-12-31' on the first run marks everything;
+     *        null (the usual case) marks nothing
+     * @return array{inserted: int, updated: int, removed: int, restored: int, backfilled: int}
      */
-    public function sync(array $records, string $now, bool $backfill): array
+    public function sync(array $records, string $now, ?string $backfillBefore = null): array
     {
-        $stats = ['inserted' => 0, 'updated' => 0, 'removed' => 0, 'restored' => 0];
+        $stats = ['inserted' => 0, 'updated' => 0, 'removed' => 0, 'restored' => 0, 'backfilled' => 0];
         $fields = ApplicationRecord::TRACKED_FIELDS;
 
         $select = $this->pdo->prepare('SELECT * FROM applications WHERE keyval = ?');
@@ -59,8 +61,11 @@ final class ApplicationStore
                 $select->closeCursor();
 
                 if ($existing === false) {
+                    $received = $record['date_received'] ?? $record['date_valid'] ?? '0000-00-00';
+                    $isHistory = $backfillBefore !== null && $received < $backfillBefore;
+                    $stats['backfilled'] += $isHistory ? 1 : 0;
                     $params = [':keyval' => $record['keyval'], ':now' => $now, ':now2' => $now, ':now3' => $now,
-                               ':backfilled' => $backfill ? 1 : 0];
+                               ':backfilled' => $isHistory ? 1 : 0];
                     foreach ($fields as $f) {
                         $params[':' . $f] = $record[$f];
                     }
@@ -121,6 +126,27 @@ final class ApplicationStore
             throw $e;
         }
         return $stats;
+    }
+
+    public function getSetting(string $name): ?string
+    {
+        $stmt = $this->pdo->prepare('SELECT value FROM settings WHERE name = ?');
+        $stmt->execute([$name]);
+        $value = $stmt->fetchColumn();
+        return $value === false ? null : (string) $value;
+    }
+
+    public function setSetting(string $name, ?string $value): void
+    {
+        $this->pdo->beginTransaction();
+        try {
+            $this->pdo->prepare('DELETE FROM settings WHERE name = ?')->execute([$name]);
+            $this->pdo->prepare('INSERT INTO settings (name, value) VALUES (?, ?)')->execute([$name, $value]);
+            $this->pdo->commit();
+        } catch (\Throwable $e) {
+            $this->pdo->rollBack();
+            throw $e;
+        }
     }
 
     /** All applications still present in the council feed, newest first. */

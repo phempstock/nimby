@@ -51,15 +51,34 @@ for n in range(12): add(i, today - datetime.timedelta(days=30 * n + 5), random.c
 add(i, today - datetime.timedelta(days=11), cats[0], big, "T1 - Cherry: Reduce overhanging branches to 1 Clumber Road East and adjacent property to the fence/boundary line to appropriate growth points", (today - datetime.timedelta(days=1)).isoformat(), types[0]); feats[-1]["properties"].update(ref="26/01848/PWC", slug="26-01848-PWC"); i += 1
 add(i, today - datetime.timedelta(days=7), cats[0], houses[5], '<img src=x onerror="window.__xss=1"> Proposal with <b>markup</b> & "quotes"', (today - datetime.timedelta(days=2)).isoformat(), types[1]); feats[-1]["properties"].update(ref="26/01900/PFUL3", slug="26-01900-PFUL3"); i += 1
 add(i, datetime.date(1999, 3, 2), cats[1], houses[9], "Long proposal " + "x" * 290, None, types[1]); feats[-1]["properties"].update(ref="99/00123/PFUL3", slug="99-00123-PFUL3"); i += 1
+# One application just outside the conservation area (west of it), in the 50 m margin.
+add(i, today - datetime.timedelta(days=9), cats[0], (-1.1699, 52.9505, "Derby Road", 224), "7 bedroom Sui Generis House in Multiple Occupation", (today - datetime.timedelta(days=2)).isoformat(), types[1]); feats[-1]["properties"].update(ref="26/01870/PFUL3", slug="26-01870-PFUL3"); i += 1
+
+ring = [[-1.1693, 52.9476], [-1.1611, 52.9474], [-1.1559, 52.9496], [-1.1561, 52.9538], [-1.1600, 52.9555], [-1.1662, 52.9551], [-1.1693, 52.9520], [-1.1693, 52.9476]]
+def inside(x, y, poly):
+    c = False
+    for k in range(len(poly) - 1):
+        (x1, y1), (x2, y2) = poly[k], poly[k + 1]
+        if (y1 > y) != (y2 > y) and x < (x2 - x1) * (y - y1) / (y2 - y1) + x1:
+            c = not c
+    return c
+for f in feats:
+    lon, lat = f["geometry"]["coordinates"]
+    f["properties"]["inside"] = inside(lon, lat, ring)
+# The watch area: the conservation area widened by roughly 50 m (generous, as a box around it).
+watch = [[-1.1706, 52.9467], [-1.1546, 52.9467], [-1.1546, 52.9562], [-1.1706, 52.9562], [-1.1706, 52.9467]]
+
 os.makedirs(out, exist_ok=True)
 json.dump({"type": "FeatureCollection", "features": feats}, open(f"{out}/applications.geojson", "w"))
-json.dump({"synced_at": "2026-10-27 05:17:03Z", "applications": len(feats), "unplaced": 0}, open(f"{out}/meta.json", "w"))
-ring = [[-1.1693, 52.9476], [-1.1611, 52.9474], [-1.1559, 52.9496], [-1.1561, 52.9538], [-1.1600, 52.9555], [-1.1662, 52.9551], [-1.1693, 52.9520], [-1.1693, 52.9476]]
+json.dump({"synced_at": "2026-10-27 05:17:03Z", "applications": len(feats), "unplaced": 0,
+           "outside": sum(1 for f in feats if not f["properties"]["inside"]), "buffer_metres": 50}, open(f"{out}/meta.json", "w"))
+json.dump({"type": "FeatureCollection", "features": [{"type": "Feature", "properties": {"buffer_metres": 50}, "geometry": {"type": "Polygon", "coordinates": [watch]}}]}, open(f"{out}/watch-area.geojson", "w"))
 json.dump({"type": "FeatureCollection", "features": [{"type": "Feature", "properties": {"NAME": "The Park"}, "geometry": {"type": "Polygon", "coordinates": [ring]}}]}, open(f"{out}/park-boundary.geojson", "w"))
 def years_ago(n):
     try: return today.replace(year=today.year - n)
     except ValueError: return today.replace(year=today.year - n, day=28)
 cut = years_ago(1).isoformat()
 last12 = sum(1 for f in feats if f["properties"]["received"] >= cut)
-json.dump({"total": len(feats), "last12": last12, "synced": "27 October 2026 at 05:17"}, open(f"{out}/expected.json", "w"))
-print(len(feats), "features;", last12, "in the last 12 months")
+nearby12 = sum(1 for f in feats if f["properties"]["received"] >= cut and not f["properties"]["inside"])
+json.dump({"total": len(feats), "last12": last12, "nearby12": nearby12, "synced": "27 October 2026 at 05:17"}, open(f"{out}/expected.json", "w"))
+print(len(feats), "features;", last12, "in the last 12 months, of which", nearby12, "in the margin")

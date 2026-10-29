@@ -5,6 +5,7 @@ namespace Nimby\Export;
 
 use Nimby\Council\AppType;
 use Nimby\Council\Status;
+use Nimby\Support\Geo;
 use RuntimeException;
 
 /**
@@ -20,14 +21,22 @@ final class GeoJsonExporter
     {
     }
 
-    /** @param array<int, array<string, mixed>> $rows from ApplicationStore::allActive() */
-    public function write(array $rows, string $syncedAtUtc): array
+    /**
+     * @param array<int, array<string, mixed>> $rows from ApplicationStore::allActive()
+     * @param array|null $coreArea the conservation area (GeoJSON); applications outside it are
+     *        flagged 'inside' => false (they are in the surrounding margin)
+     * @param float $bufferMetres width of that margin, for the page's wording
+     */
+    public function write(array $rows, string $syncedAtUtc, ?array $coreArea = null, float $bufferMetres = 0): array
     {
         $features = [];
+        $outside = 0;
         foreach ($rows as $r) {
             if ($r['lat'] === null || $r['lng'] === null) {
                 continue; // cannot be placed on the map
             }
+            $inside = $coreArea === null || Geo::pointInGeoJson((float) $r['lng'], (float) $r['lat'], $coreArea);
+            $outside += $inside ? 0 : 1;
             $features[] = [
                 'type' => 'Feature',
                 'geometry' => [
@@ -48,6 +57,7 @@ final class GeoJsonExporter
                     'decision'      => $r['decision'],
                     'decision_date' => $r['decision_date'],
                     'category'      => Status::category($r['status'], $r['decision'], $r['decision_date']),
+                    'inside'        => $inside,
                     // Null for history loaded on the first run, so the map never badges it as new.
                     'first_seen'    => (int) $r['backfilled'] === 1 ? null : substr((string) $r['first_seen_at'], 0, 10),
                     'url'           => $this->publicAccessBaseUrl . rawurlencode((string) $r['keyval']),
@@ -60,6 +70,8 @@ final class GeoJsonExporter
             'synced_at'    => $syncedAtUtc . 'Z',
             'applications' => count($features),
             'unplaced'     => count($rows) - count($features),
+            'outside'      => $outside,
+            'buffer_metres' => $bufferMetres,
         ];
 
         $this->writeAtomically('applications.geojson', $collection);
@@ -71,6 +83,16 @@ final class GeoJsonExporter
     public function writeBoundary(array $geojson): void
     {
         $this->writeAtomically('park-boundary.geojson', $geojson);
+    }
+
+    /** Write the widened "watch area" outline, or remove it when there is no margin. */
+    public function writeWatchArea(?array $geojson): void
+    {
+        if ($geojson === null) {
+            @unlink($this->publicDataDir . '/watch-area.geojson');
+            return;
+        }
+        $this->writeAtomically('watch-area.geojson', $geojson);
     }
 
     /** "26/01848/PWC" -> "26-01848-PWC", used in links such as /?app=26-01848-PWC */

@@ -15,7 +15,10 @@ final class FakeHttpClient implements HttpClient
     public array $layerFields;
     /** @var list<array> pages of features returned for the planning query */
     public array $pages = [];
+    /** @var list<array>|null pages returned when the query asks for a margin (distance); null = same as $pages */
+    public ?array $bufferedPages = null;
     public ?array $planningError = null;
+    public ?array $bufferError = null;
 
     public function __construct()
     {
@@ -53,13 +56,21 @@ final class FakeHttpClient implements HttpClient
             if ($this->planningError) {
                 return ['error' => $this->planningError];
             }
+            $pages = isset($params['distance']) && $this->bufferedPages !== null ? $this->bufferedPages : $this->pages;
             $page = intdiv((int) ($params['resultOffset'] ?? 0), 2000);
-            $features = $this->pages[$page] ?? [];
+            $features = $pages[$page] ?? [];
             $response = ['features' => $features];
-            if ($page < count($this->pages) - 1) {
+            if ($page < count($pages) - 1) {
                 $response['exceededTransferLimit'] = true;
             }
             return $response;
+        }
+        if (str_ends_with($url, '/GeometryServer/buffer')) {
+            if ($this->bufferError) {
+                return ['error' => $this->bufferError];
+            }
+            // The test conservation area widened by roughly 50 m, clockwise as ArcGIS returns it.
+            return ['geometries' => [['rings' => [[[-1.1657, 52.9475], [-1.1657, 52.9555], [-1.1523, 52.9555], [-1.1523, 52.9475], [-1.1657, 52.9475]]]]]];
         }
         throw new \RuntimeException("Unexpected POST {$url}");
     }

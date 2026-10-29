@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Nimby\Council;
 
 use Nimby\Http\HttpClient;
+use Nimby\Support\Geo;
 use RuntimeException;
 
 /**
@@ -26,7 +27,8 @@ final class ArcGisClient
     public function __construct(
         private HttpClient $http,
         private string $planningLayerUrl,
-        private string $conservationLayerUrl
+        private string $conservationLayerUrl,
+        private ?string $geometryServiceUrl = null
     ) {
     }
 
@@ -83,11 +85,40 @@ final class ArcGisClient
     }
 
     /**
-     * Fetch every planning application point inside the boundary polygon,
-     * paging through the results. Returns raw ArcGIS features
+     * The outline of the polygon widened by $metres, from the council's geometry
+     * service, as a WGS84 GeoJSON FeatureCollection for drawing on the map.
+     */
+    public function bufferOutline(array $esriPolygon, float $metres): array
+    {
+        if (!$this->geometryServiceUrl) {
+            throw new RuntimeException('No geometry service configured');
+        }
+        $sr = $esriPolygon['spatialReference']['latestWkid'] ?? $esriPolygon['spatialReference']['wkid'] ?? 27700;
+        $response = $this->http->postJson(rtrim($this->geometryServiceUrl, '/') . '/buffer', [
+            'geometries'   => json_encode(['geometryType' => 'esriGeometryPolygon', 'geometries' => [['rings' => $esriPolygon['rings']]]]),
+            'inSR'         => (string) $sr,
+            'bufferSR'     => (string) $sr,
+            'outSR'        => '4326',
+            'distances'    => (string) $metres,
+            'unit'         => '9001',          // metres
+            'unionResults' => 'true',
+            'geodesic'     => 'false',
+            'f'            => 'json',
+        ]);
+        $this->throwIfError($response, 'geometry service buffer');
+        $rings = $response['geometries'][0]['rings'] ?? null;
+        if (!is_array($rings) || !$rings) {
+            throw new RuntimeException('Geometry service returned no outline');
+        }
+        return Geo::esriRingsToGeoJson($rings, ['buffer_metres' => $metres]);
+    }
+
+    /**
+     * Fetch every planning application point inside the boundary polygon, or within
+     * $bufferMetres of it, paging through the results. Returns raw ArcGIS features
      * (each with 'attributes' and 'geometry' {x: lng, y: lat}).
      */
-    public function fetchApplicationsWithin(array $esriPolygon): array
+    public function fetchApplicationsWithin(array $esriPolygon, float $bufferMetres = 0): array
     {
         $url = rtrim($this->planningLayerUrl, '/') . '/query';
         $inSr = $esriPolygon['spatialReference']['latestWkid'] ?? $esriPolygon['spatialReference']['wkid'] ?? 27700;
@@ -104,6 +135,11 @@ final class ArcGisClient
             'resultRecordCount' => (string) self::PAGE_SIZE,
             'f'              => 'json',
         ];
+        if ($bufferMetres > 0) {
+            // The council's server widens the polygon itself before matching points.
+            $base['distance'] = (string) $bufferMetres;
+            $base['units'] = 'esriSRUnit_Meter';
+        }
 
         $all = [];
         for ($page = 0; $page < self::MAX_PAGES; $page++) {

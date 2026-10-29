@@ -20,6 +20,10 @@ return [
         'planning_layer_url' => 'https://maps164.nottinghamcity.gov.uk/server/rest/services/Core_services/Planning/MapServer/13',
         'conservation_layer_url' => 'https://maps164.nottinghamcity.gov.uk/server/rest/services/Core_services/Local_Plan_2020/MapServer/49',
         'conservation_area_name' => 'The Park',
+        // Also watch applications within this many metres of the conservation area
+        // (0 = the conservation area only). Agreed by the committee: 50.
+        'buffer_metres' => 50,
+        'geometry_service_url' => 'https://maps164.nottinghamcity.gov.uk/server/rest/services/Utilities/Geometry/GeometryServer',
         'public_access_url' => 'https://publicaccess.nottinghamcity.gov.uk/online-applications/applicationDetails.do?activeTab=summary&keyVal=',
         'timeout_seconds' => 60,
     ],

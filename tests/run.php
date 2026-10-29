@@ -15,6 +15,7 @@ use Nimby\Council\ArcGisClient;
 use Nimby\Council\Status;
 use Nimby\Export\GeoJsonExporter;
 use Nimby\Storage\ApplicationStore;
+use Nimby\Support\Geo;
 use Nimby\Storage\Database;
 use Nimby\SyncJob;
 use Nimby\Tests\FakeHttpClient;
@@ -88,27 +89,33 @@ function sampleFeatures(): array
 }
 
 /** Fresh database, temporary directories and a sync job wired to the fake server. */
-function harness(): array
+function harness(float $bufferMetres = 0): array
 {
     $pdo = testConnection();
     $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
     if (getenv('NIMBY_TEST_DSN')) {
         // Shared test database: start every test from empty tables.
-        foreach (['application_events', 'applications', 'sync_runs'] as $table) {
+        foreach (['application_events', 'applications', 'sync_runs', 'settings'] as $table) {
             $pdo->exec("DROP TABLE IF EXISTS {$table}");
         }
     }
-    Database::migrate($pdo, dirname(__DIR__) . '/migrations/' . ($driver === 'sqlite' ? 'sqlite' : 'mysql') . '/001_applications.sql');
+    $migrations = glob(dirname(__DIR__) . '/migrations/' . ($driver === 'sqlite' ? 'sqlite' : 'mysql') . '/*.sql');
+    sort($migrations);
+    foreach ($migrations as $file) {
+        Database::migrate($pdo, $file);
+    }
     $dir = sys_get_temp_dir() . '/nimby-test-' . bin2hex(random_bytes(4));
     mkdir($dir . '/public', 0755, true);
     $http = new FakeHttpClient();
     $council = new ArcGisClient($http,
         'https://maps164.nottinghamcity.gov.uk/server/rest/services/Core_services/Planning/MapServer/13',
-        'https://maps164.nottinghamcity.gov.uk/server/rest/services/Core_services/Local_Plan_2020/MapServer/49');
+        'https://maps164.nottinghamcity.gov.uk/server/rest/services/Core_services/Local_Plan_2020/MapServer/49',
+        'https://maps164.nottinghamcity.gov.uk/server/rest/services/Utilities/Geometry/GeometryServer');
     $store = new ApplicationStore($pdo);
     $exporter = new GeoJsonExporter($dir . '/public', 'https://publicaccess.nottinghamcity.gov.uk/online-applications/applicationDetails.do?activeTab=summary&keyVal=');
-    $job = new SyncJob($council, $store, $exporter, $pdo, 'The Park', $dir . '/cache', 0.8);
-    return compact('pdo', 'dir', 'http', 'store', 'job');
+    $job = new SyncJob($council, $store, $exporter, $pdo, 'The Park', $dir . '/cache', 0.8, $bufferMetres);
+    $rebuild = fn(float $metres) => new SyncJob($council, $store, $exporter, $pdo, 'The Park', $dir . '/cache', 0.8, $metres);
+    return compact('pdo', 'dir', 'http', 'store', 'job', 'rebuild');
 }
 
 function readJson(string $path): array
@@ -335,6 +342,106 @@ test('Council server error is reported', function () {
     }
     check($threw, 'server error message passed on');
 });
+
+/** Two applications just outside the test conservation area (west edge is -1.165). */
+function marginFeatures(): array
+{
+    return [
+        feature(300001, 'MARGINOLD0001', '24/00500/PFUL3', '224 Derby Road, Nottingham, NG7 1NQ',
+            '7 bedroom Sui Generis House in Multiple Occupation', '2024-03-12', 'Granted conditional permission',
+            'Grant conditional permission', '2024-05-01', -1.1654, 52.9520),
+        feature(300002, 'MARGINNEW0002', '26/01870/PFUL3', '16 Castle Boulevard, Nottingham, NG7 1FL',
+            'Change of use from Class E to Class F1(a)', '2026-10-20', 'Pending Consideration',
+            null, null, -1.1600, 52.9477),
+    ];
+}
+
+test('Geometry helpers', function () {
+    $square = ['type' => 'FeatureCollection', 'features' => [['type' => 'Feature', 'properties' => [], 'geometry' => [
+        'type' => 'Polygon', 'coordinates' => [
+            [[0, 0], [10, 0], [10, 10], [0, 10], [0, 0]],
+            [[4, 4], [6, 4], [6, 6], [4, 6], [4, 4]],
+        ]]]]];
+    check(Geo::pointInGeoJson(2, 2, $square), 'point inside polygon');
+    check(!Geo::pointInGeoJson(5, 5, $square), 'point in a hole is outside');
+    check(!Geo::pointInGeoJson(12, 5, $square), 'point beyond the polygon is outside');
+    // ArcGIS rings: outer clockwise, hole anticlockwise; two separate outer rings -> MultiPolygon
+    $gj = Geo::esriRingsToGeoJson([
+        [[0, 0], [0, 10], [10, 10], [10, 0], [0, 0]],
+        [[4, 4], [6, 4], [6, 6], [4, 6], [4, 4]],
+        [[20, 0], [20, 5], [25, 5], [25, 0], [20, 0]],
+    ]);
+    $g = $gj['features'][0]['geometry'];
+    check($g['type'] === 'MultiPolygon' && count($g['coordinates']) === 2 && count($g['coordinates'][0]) === 2, 'ArcGIS rings become a MultiPolygon with its hole');
+    check(Geo::pointInGeoJson(22, 2, $gj) && !Geo::pointInGeoJson(5, 5, $gj), 'converted outline behaves');
+});
+
+test('A 50 m margin: council query, outline and inside flags', function () {
+    ['job' => $job, 'http' => $http, 'pdo' => $pdo, 'dir' => $dir, 'store' => $store] = harness(50);
+    $http->pages = [sampleFeatures()];
+    $http->bufferedPages = [array_merge(sampleFeatures(), marginFeatures())];
+    $summary = $job->run(false, '2026-10-29 05:00:00');
+
+    $query = array_values(array_filter($http->requests, fn($r) => str_contains($r[1], 'MapServer/13/query')))[0][2];
+    check(($query['distance'] ?? null) === '50' && ($query['units'] ?? null) === 'esriSRUnit_Meter', 'council asked for applications within 50 m');
+    check($summary['inserted'] === 7, 'margin applications stored too (' . $summary['inserted'] . ')');
+    check((bool) array_filter($summary['log'], fn($l) => str_contains($l, 'within 50 m of it')), 'log describes the area');
+
+    $buffer = array_values(array_filter($http->requests, fn($r) => str_ends_with($r[1], '/buffer')))[0][2];
+    check($buffer['distances'] === '50' && $buffer['unit'] === '9001' && $buffer['outSR'] === '4326', 'outline requested from the geometry service in metres');
+    $watch = readJson($dir . '/public/watch-area.geojson');
+    check($watch['features'][0]['geometry']['type'] === 'Polygon', 'watch-area outline written for the map');
+
+    $geo = readJson($dir . '/public/applications.geojson');
+    $inside = [];
+    foreach ($geo['features'] as $f) {
+        $inside[$f['properties']['ref']] = $f['properties']['inside'];
+    }
+    check($inside['26/01848/PWC'] === true, 'application in The Park flagged inside');
+    check($inside['24/00500/PFUL3'] === false && $inside['26/01870/PFUL3'] === false, 'margin applications flagged outside');
+    $meta = readJson($dir . '/public/meta.json');
+    check($meta['outside'] === 2 && (float) $meta['buffer_metres'] === 50.0, 'meta.json records the margin');
+    check($store->getSetting('area') === 'The Park|50', 'area remembered');
+
+    // A second run reuses the cached outline.
+    $before = count($http->requests);
+    $job->run(false, '2026-10-30 05:00:00');
+    check(count(array_filter(array_slice($http->requests, $before), fn($r) => str_ends_with($r[1], '/buffer'))) === 0, 'outline cached between runs');
+});
+
+test('Widening the area on an existing site', function () {
+    ['job' => $job, 'http' => $http, 'pdo' => $pdo, 'store' => $store, 'rebuild' => $rebuild] = harness(0);
+    $http->pages = [sampleFeatures()];
+    $job->run(false, '2026-10-27 05:00:00');                 // the site as it was: no margin, no settings row
+    $pdo->exec("DELETE FROM settings");                        // as installed before this change
+
+    $http->bufferedPages = [array_merge(sampleFeatures(), marginFeatures())];
+    $summary = $rebuild(50)->run(false, '2026-10-29 05:00:00');
+    check($summary['inserted'] === 2 && $summary['backfilled'] === 1, 'two margin applications added, one as history (' . json_encode([$summary['inserted'], $summary['backfilled']]) . ')');
+    $flags = $pdo->query("SELECT keyval, backfilled FROM applications WHERE keyval LIKE 'MARGIN%' ORDER BY keyval")->fetchAll(PDO::FETCH_KEY_PAIR);
+    check((int) $flags['MARGINOLD0001'] === 1, 'old margin application (2024) will not be emailed');
+    check((int) $flags['MARGINNEW0002'] === 0, 'recent margin application (9 days old) counts as new');
+    check((bool) array_filter($summary['log'], fn($l) => str_contains($l, 'Area changed from "The Park + 0 m" to "The Park + 50 m"')), 'area change logged');
+
+    $summary = $rebuild(50)->run(false, '2026-10-30 05:00:00');
+    check($summary['inserted'] === 0 && $summary['backfilled'] === 0, 'next run is an ordinary run');
+
+    // Narrowing again is allowed even though fewer applications come back, and they are kept as removed.
+    $http->pages = [array_slice(sampleFeatures(), 0, 3)];
+    $summary = $rebuild(0)->run(false, '2026-10-31 05:00:00');
+    check($summary['status'] === 'ok' && $summary['removed'] === 4, 'narrowing the area is not mistaken for an outage (' . $summary['removed'] . ' removed)');
+});
+
+test('Geometry service down: the sync carries on', function () {
+    ['job' => $job, 'http' => $http, 'dir' => $dir] = harness(50);
+    $http->pages = [sampleFeatures()];
+    $http->bufferError = ['code' => 500, 'message' => 'Geometry service unavailable'];
+    $summary = $job->run(false, '2026-10-29 05:00:00');
+    check($summary['status'] === 'ok', 'sync succeeded without the outline');
+    check(!is_file($dir . '/public/watch-area.geojson'), 'no outline written');
+    check((bool) array_filter($summary['log'], fn($l) => str_contains($l, 'Could not draw the 50 m outline')), 'problem noted in the log');
+});
+
 
 echo "\n{$passes} checks passed, {$failures} failed.\n";
 exit($failures === 0 ? 0 : 1);

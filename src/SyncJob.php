@@ -12,14 +12,18 @@ use PDO;
 use RuntimeException;
 
 /**
- * The nightly job: fetch The Park's applications from the council,
- * store changes, and rewrite the map's data files.
+ * The nightly job: fetch the applications in The Park (and within the
+ * configured margin around it) from the council, store changes, and rewrite
+ * the map's data files.
  *
  * On any failure the database transaction is rolled back and the existing
  * map files are left untouched, so the site keeps showing yesterday's data.
  */
 final class SyncJob
 {
+    /** When the area is widened, newly included applications older than this are history, not news. */
+    public const WIDENED_AREA_NEW_DAYS = 30;
+
     /** @var list<string> */
     private array $log = [];
 
@@ -30,7 +34,8 @@ final class SyncJob
         private PDO $pdo,
         private string $areaName,
         private string $cacheDir,
-        private float $minRatioOfKnown = 0.8
+        private float $minRatioOfKnown = 0.8,
+        private float $bufferMetres = 0
     ) {
     }
 
@@ -46,13 +51,23 @@ final class SyncJob
         try {
             $boundary = $this->boundary($refreshBoundary);
             $this->exporter->writeBoundary($boundary['geojson']);
+            $watchArea = $this->bufferMetres > 0 ? $this->watchArea($boundary, $refreshBoundary) : null;
+            if ($watchArea !== false) {
+                $this->exporter->writeWatchArea($watchArea);   // null removes it (no margin)
+            }
+
+            // Has the area changed since the last successful run (e.g. a margin added)?
+            $areaKey = $this->areaName . '|' . self::metres($this->bufferMetres);
+            $firstRun = $this->store->isEmpty();
+            $previousKey = $this->store->getSetting('area') ?? ($firstRun ? null : $this->areaName . '|0');
+            $areaChanged = !$firstRun && $previousKey !== $areaKey;
 
             $missing = $this->council->missingPlanningFields();
             if ($missing) {
                 throw new RuntimeException('Council planning layer is missing fields: ' . implode(', ', $missing));
             }
 
-            $features = $this->council->fetchApplicationsWithin($boundary['esri']);
+            $features = $this->council->fetchApplicationsWithin($boundary['esri'], $this->bufferMetres);
             $records = [];
             $skipped = 0;
             $duplicates = 0;
@@ -69,7 +84,7 @@ final class SyncJob
                 $records[$record['keyval']] = $record;
             }
             $fetched = count($records);
-            $this->note("Fetched {$fetched} applications inside \"{$this->areaName}\"");
+            $this->note("Fetched {$fetched} applications " . $this->describeArea());
             if ($skipped) {
                 $this->note("Skipped {$skipped} features with no key or reference");
             }
@@ -81,7 +96,7 @@ final class SyncJob
             if ($fetched === 0) {
                 throw new RuntimeException('Council returned no applications; keeping existing data');
             }
-            if ($known > 0 && $fetched < $known * $this->minRatioOfKnown) {
+            if ($known > 0 && !$areaChanged && $fetched < $known * $this->minRatioOfKnown) {
                 throw new RuntimeException(sprintf(
                     'Council returned %d applications but we hold %d; keeping existing data in case of a partial outage',
                     $fetched, $known
@@ -93,16 +108,29 @@ final class SyncJob
                 $this->note('Unmapped status/decision wording (shown as "other"): ' . implode('; ', $unknown));
             }
 
-            $backfill = $this->store->isEmpty();
-            $stats = $this->store->sync(array_values($records), $now, $backfill);
-            if ($backfill) {
-                $this->note('First run: all applications marked as back-filled and will not be emailed');
+            $backfillBefore = null;
+            if ($firstRun) {
+                $backfillBefore = '9999-12-31';
+            } elseif ($areaChanged) {
+                $backfillBefore = gmdate('Y-m-d', strtotime($now . ' UTC') - self::WIDENED_AREA_NEW_DAYS * 86400);
             }
+            $stats = $this->store->sync(array_values($records), $now, $backfillBefore);
+            if ($firstRun) {
+                $this->note('First run: all applications marked as back-filled and will not be emailed');
+            } elseif ($areaChanged) {
+                $this->note(sprintf(
+                    'Area changed from "%s" to "%s": %d newly included applications received before %s were added as history and will not be emailed',
+                    str_replace('|', ' + ', $previousKey) . ' m', str_replace('|', ' + ', $areaKey) . ' m', $stats['backfilled'], $backfillBefore
+                ));
+            }
+            $this->store->setSetting('area', $areaKey);
             $this->note(sprintf('Inserted %d, updated %d, removed %d, restored %d',
                 $stats['inserted'], $stats['updated'], $stats['removed'], $stats['restored']));
 
-            $meta = $this->exporter->write($this->store->allActive(), $now);
-            $this->note("Wrote map data: {$meta['applications']} pins" . ($meta['unplaced'] ? ", {$meta['unplaced']} without a location" : ''));
+            $meta = $this->exporter->write($this->store->allActive(), $now, $boundary['geojson'], $this->bufferMetres);
+            $this->note("Wrote map data: {$meta['applications']} pins"
+                . ($meta['outside'] ? ", {$meta['outside']} of them in the " . self::metres($this->bufferMetres) . ' m margin' : '')
+                . ($meta['unplaced'] ? ", {$meta['unplaced']} without a location" : ''));
 
             $summary = ['status' => 'ok', 'fetched' => $fetched] + $stats + ['log' => $this->log];
             $this->finishRun($runId, 'ok', $summary);
@@ -138,6 +166,44 @@ final class SyncJob
         $vertices = array_sum(array_map('count', $boundary['esri']['rings']));
         $this->note("Downloaded boundary for \"{$this->areaName}\" ({$vertices} points)");
         return $boundary;
+    }
+
+    /**
+     * The widened outline for the map, cached like the boundary. Returns false if the
+     * geometry service is unavailable: the sync carries on and the map keeps its last outline.
+     */
+    private function watchArea(array $boundary, bool $refresh): array|false
+    {
+        $slug = preg_replace('/[^a-z0-9]+/', '-', strtolower($this->areaName));
+        $file = $this->cacheDir . '/watch-area-' . $slug . '-' . self::metres($this->bufferMetres) . 'm.json';
+        if (!$refresh && is_file($file)) {
+            $cached = json_decode((string) file_get_contents($file), true);
+            if (is_array($cached) && isset($cached['features'])) {
+                return $cached;
+            }
+        }
+        try {
+            $outline = $this->council->bufferOutline($boundary['esri'], $this->bufferMetres);
+        } catch (\Throwable $e) {
+            $this->note('Could not draw the ' . self::metres($this->bufferMetres) . ' m outline (' . $e->getMessage() . '); the map keeps its previous outline');
+            return false;
+        }
+        file_put_contents($file, json_encode($outline, JSON_UNESCAPED_SLASHES));
+        $this->note('Drew the ' . self::metres($this->bufferMetres) . " m outline around \"{$this->areaName}\"");
+        return $outline;
+    }
+
+    private function describeArea(): string
+    {
+        return $this->bufferMetres > 0
+            ? "inside \"{$this->areaName}\" or within " . self::metres($this->bufferMetres) . ' m of it'
+            : "inside \"{$this->areaName}\"";
+    }
+
+    /** 50.0 -> "50", 12.5 -> "12.5" */
+    private static function metres(float $m): string
+    {
+        return rtrim(rtrim(number_format($m, 2, '.', ''), '0'), '.');
     }
 
     /** @return list<string> */

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>NIMBY – Planning watch for The Park</title>
-  <meta name="description" content="Planning applications in The Park Conservation Area, Nottingham, on a map, updated nightly from Nottingham City Council.">
+  <meta name="description" content="Planning applications in and around The Park Conservation Area, Nottingham, on a map, updated nightly from Nottingham City Council.">
   <meta name="theme-color" content="#1f3d34">
   <link rel="preload" href="vendor/fonts/alegreya-sans-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="vendor/fonts/alegreya-sans-latin-800-normal.woff2" as="font" type="font/woff2" crossorigin>
@@ -54,6 +54,11 @@
           <input type="checkbox" id="trees" checked>
           <span>Include tree works <span class="count" id="trees-count"></span></span>
         </label>
+
+        <label class="toggle" id="nearby-toggle" hidden>
+          <input type="checkbox" id="nearby" checked>
+          <span><span id="nearby-label">Include neighbouring properties</span> <span class="count" id="nearby-count"></span></span>
+        </label>
       </form>
 
       <section class="results" id="results" tabindex="-1" aria-labelledby="results-heading">
@@ -63,6 +68,7 @@
       </section>
 
       <footer class="credits">
+        <p id="area-note" hidden></p>
         <p>Pins show where the council has placed each application; positions are approximate. The council’s case file is the official record.</p>
         <p>A weekly email of new applications is coming soon.</p>
         <p>Planning data from Nottingham City Council under the Open Government Licence. © Crown copyright and database rights, OS AC0000822898. Map © OpenStreetMap contributors.</p>

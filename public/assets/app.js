@@ -22,6 +22,8 @@
     cats: new Set(CATEGORIES.map(function (c) { return c.id; })),
     when: '1',
     trees: true,
+    nearby: true,             // include applications in the margin around The Park
+    margin: 0,                // width of that margin in metres, from meta.json
     terms: [],
     pinned: null,             // slug from ?app=, always shown whatever the filters
     active: null,             // slug whose popup is open
@@ -36,6 +38,11 @@
     chips: document.getElementById('chips'),
     trees: document.getElementById('trees'),
     treesCount: document.getElementById('trees-count'),
+    nearby: document.getElementById('nearby'),
+    nearbyToggle: document.getElementById('nearby-toggle'),
+    nearbyLabel: document.getElementById('nearby-label'),
+    nearbyCount: document.getElementById('nearby-count'),
+    areaNote: document.getElementById('area-note'),
     heading: document.getElementById('results-heading'),
     list: document.getElementById('list'),
     more: document.getElementById('more'),
@@ -149,15 +156,24 @@
     }).observe(document.getElementById('map'));
   }
 
-  function drawBoundary(geojson) {
+  // The conservation area is dashed; the wider watch area (the margin around it), when
+  // there is one, is a solid line, and the veil softens everything beyond what we watch.
+  function drawBoundary(geojson, watchArea) {
     var outline = L.geoJSON(geojson, {
       interactive: false,
       style: { color: '#1f3d34', weight: 2.5, opacity: 0.9, dashArray: '7 5', fill: false }
     }).addTo(map);
+    var outer = outline;
+    if (watchArea) {
+      outer = L.geoJSON(watchArea, {
+        interactive: false,
+        style: { color: '#1f3d34', weight: 1.5, opacity: 0.75, fill: false }
+      }).addTo(map);
+    }
 
-    // Pale veil over everything outside the conservation area.
+    // Pale veil over everything outside the area we watch.
     var holes = [];
-    geojson.features.forEach(function (f) {
+    (watchArea || geojson).features.forEach(function (f) {
       var polys = f.geometry.type === 'MultiPolygon' ? f.geometry.coordinates : [f.geometry.coordinates];
       polys.forEach(function (rings) {
         holes.push(rings[0].map(function (c) { return [c[1], c[0]]; }));
@@ -167,8 +183,9 @@
       stroke: false, fillColor: '#f2f3ef', fillOpacity: 0.5, interactive: false, className: 'outside'
     }).addTo(map);
     outline.bringToFront();
+    outer.bringToFront();
 
-    parkBounds = outline.getBounds();
+    parkBounds = outer.getBounds();
     map.setMaxBounds(parkBounds.pad(1.5));
     fitPark();
   }
@@ -186,6 +203,7 @@
         ref: p.ref,
         typeLabel: p.type_label,
         trees: !!p.trees,
+        inside: p.inside !== false,
         address: p.address,
         proposal: p.proposal || '',
         received: p.received,
@@ -239,11 +257,13 @@
     if (app.valid && app.valid !== app.received) rows += '<dt>Validated</dt><dd>' + formatDate(app.valid) + '</dd>';
     if (app.decision && app.decision !== app.status) rows += '<dt>Decision</dt><dd>' + esc(app.decision) + '</dd>';
     if (app.decisionDate) rows += '<dt>Decided</dt><dd>' + formatDate(app.decisionDate) + '</dd>';
+    var where = app.inside ? '' :
+      '<p class="card-where">Just outside The Park, within ' + state.margin + ' m of the conservation area</p>';
 
     return '<article class="card">' +
       '<h3 class="card-address">' + esc(tidyAddress(app.address) || 'Address not given') + '</h3>' +
       '<p class="card-type">' + esc(app.typeLabel) + ', ' + esc(app.ref) +
-        (app.isNew ? '<span class="badge-new">New this week</span>' : '') + '</p>' +
+        (app.isNew ? '<span class="badge-new">New this week</span>' : '') + '</p>' + where +
       '<p class="card-proposal" style="white-space: pre-line">' + esc(text) +
         (truncated ? ' <span class="more-text">(continues in the case file)</span>' : '') + '</p>' +
       '<dl class="facts">' + rows + '</dl>' +
@@ -290,6 +310,7 @@
     if (app.slug === state.pinned) return true;
     if (state.when !== 'all' && (!app.date || app.date < state.cutoff)) return false;
     if (ignore !== 'trees' && !state.trees && app.trees) return false;
+    if (ignore !== 'nearby' && !state.nearby && !app.inside) return false;
     for (var i = 0; i < state.terms.length; i++) {
       if (app.search.indexOf(state.terms[i]) === -1) return false;
     }
@@ -301,6 +322,7 @@
     state.when = el.when.value;
     state.cutoff = state.when === 'all' ? '' : isoYearsAgo(Number(state.when));
     state.trees = el.trees.checked;
+    state.nearby = el.nearby.checked;
     state.terms = el.q.value.toLowerCase().split(/\s+/).filter(Boolean);
     state.cats = new Set(Array.prototype.map.call(el.chips.querySelectorAll('input:checked'), function (i) { return i.value; }));
   }
@@ -311,15 +333,18 @@
     var counts = {};
     CATEGORIES.forEach(function (c) { counts[c.id] = 0; });
     var treeCount = 0;
+    var nearbyCount = 0;
     state.apps.forEach(function (app) {
       if (passes(app, 'category')) counts[app.category] = (counts[app.category] || 0) + 1;
       if (app.trees && passes(app, 'trees')) treeCount++;
+      if (!app.inside && passes(app, 'nearby')) nearbyCount++;
     });
     CATEGORIES.forEach(function (c) {
       var node = el.chips.querySelector('[data-count="' + c.id + '"]');
       if (node) node.textContent = counts[c.id];
     });
     el.treesCount.textContent = '(' + treeCount + ')';
+    el.nearbyCount.textContent = '(' + nearbyCount + ')';
 
     state.shown = state.apps.filter(function (app) { return passes(app); });
     cluster.clearLayers();
@@ -374,7 +399,8 @@
       var status = app.status || app.decision || 'Status not recorded';
       return '<li><button type="button" class="item" data-slug="' + esc(app.slug) + '" aria-current="' + (app.slug === state.active) + '">' +
         '<span class="item-top"><span class="item-address">' + esc(shortAddress(app.address)) +
-          (app.isNew ? '<span class="badge-new">New</span>' : '') + '</span>' +
+          (app.isNew ? '<span class="badge-new">New</span>' : '') +
+          (app.inside ? '' : '<span class="badge-nearby">Nearby</span>') + '</span>' +
           '<span class="item-date">' + formatDate(app.date) + '</span></span>' +
         '<span class="item-proposal">' + esc(oneLine(app.proposal) || 'No description given.') + '</span>' +
         '<span class="item-meta"><span class="dot cat-' + app.category + '"></span>' + esc(status) +
@@ -401,6 +427,7 @@
   });
   el.when.addEventListener('change', apply);
   el.trees.addEventListener('change', apply);
+  el.nearby.addEventListener('change', apply);
   el.chips.addEventListener('change', apply);
   document.getElementById('filters').addEventListener('submit', function (e) { e.preventDefault(); apply(); });
 
@@ -462,12 +489,24 @@
   var requested = new URLSearchParams(location.search).get('app');
   if (requested) state.pinned = slugFor(requested);
 
-  Promise.all([getJson('data/applications.geojson'), getJson('data/park-boundary.geojson'), getJson('data/meta.json')])
-    .then(function (results) {
-      drawBoundary(results[1]);
-      buildApps(results[0]);
+  // The watch-area outline is optional: without it the map shows the conservation area only.
+  var watchArea = getJson('data/watch-area.geojson').catch(function () { return null; });
 
-      var synced = new Date(results[2].synced_at.replace(' ', 'T'));
+  Promise.all([getJson('data/applications.geojson'), getJson('data/park-boundary.geojson'), getJson('data/meta.json'), watchArea])
+    .then(function (results) {
+      var meta = results[2];
+      state.margin = Number(meta.buffer_metres) || 0;
+      drawBoundary(results[1], state.margin ? results[3] : null);
+      buildApps(results[0]);
+      if (state.margin) {
+        el.nearbyLabel.textContent = 'Include neighbouring properties within ' + state.margin + ' m';
+        el.nearbyToggle.hidden = false;
+        el.areaNote.textContent = 'The dashed line is The Park Conservation Area. The solid line takes in properties within ' +
+          state.margin + ' m of it, where development could also affect residents.';
+        el.areaNote.hidden = false;
+      }
+
+      var synced = new Date(meta.synced_at.replace(' ', 'T'));
       el.fresh.textContent = 'Council data checked ' + synced.toLocaleString('en-GB', {
         day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London'
       }).replace(',', ' at');
@@ -476,7 +515,7 @@
 
       if (state.pinned) {
         if (!state.bySlug.has(state.pinned)) {
-          showNotice('Application ' + requested + ' isn’t in the data for The Park. It may be outside the conservation area.');
+          showNotice('Application ' + requested + ' isn’t in the data for The Park. It may be further away than the area this site covers.');
           state.pinned = null;
           setActive(null);
         } else if (fitted) {
