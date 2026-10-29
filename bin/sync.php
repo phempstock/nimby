@@ -29,6 +29,9 @@ if (PHP_SAPI !== 'cli') {
 
 require dirname(__DIR__) . '/bootstrap.php';
 
+/** Email the admin only when there has been no successful sync for this long. */
+const ALERT_AFTER_HOURS = 30;
+
 $options = getopt('', ['refresh-boundary', 'config:']);
 $alerter = null;
 
@@ -93,6 +96,20 @@ try {
     $lines = isset($job) ? $job->log() : ['FAILED: ' . $e->getMessage()];
     $report = implode("\n", $lines) . "\n\nThe map is still showing the previous data.\n";
     fwrite(STDERR, $report);
-    $alerter?->send('Nightly sync failed', $report);
+
+    // The council's service has short outages, and the sync runs twice a day, so one
+    // failure is not news. Alert only when there has been no successful sync for 30 hours.
+    $lastOk = null;
+    try {
+        $lastOk = isset($pdo) ? $pdo->query("SELECT MAX(started_at) FROM sync_runs WHERE status = 'ok'")->fetchColumn() : null;
+    } catch (Throwable $ignored) {
+    }
+    $hours = $lastOk ? (time() - strtotime($lastOk . ' UTC')) / 3600 : INF;
+    if ($hours >= ALERT_AFTER_HOURS) {
+        $alerter?->send('Sync failing', $report . ($lastOk
+            ? sprintf("\nNo successful sync for %d hours (last at %s UTC).\n", $hours, $lastOk) : ''));
+    } else {
+        fwrite(STDERR, sprintf("No alert sent: the last successful sync was %.0f hours ago.\n", $hours));
+    }
     exit(1);
 }

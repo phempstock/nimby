@@ -4,7 +4,7 @@ A map of planning applications in The Park Conservation Area, Nottingham, with a
 
 ## How it works
 
-Once a night, `bin/sync.php` asks Nottingham City Council's public map server for every planning application inside The Park Conservation Area or within 50 m of it, where development could also affect residents. The margin is `buffer_metres` in `config.php` (default 50; 0 for the conservation area only). If it changes, newly included applications more than 30 days old are added as history, so they are never emailed as new. It stores them in MySQL, logs any status or decision changes, and writes `public/data/applications.geojson` for the map page. Visitors only ever load that static file; the council's server is queried once a day.
+Twice a day (06:17 and 12:17 UK time), `bin/sync.php` asks Nottingham City Council's public map server for every planning application inside The Park Conservation Area or within 50 m of it, where development could also affect residents. The margin is `buffer_metres` in `config.php` (default 50; 0 for the conservation area only). If it changes, newly included applications more than 30 days old are added as history, so they are never emailed as new. It stores them in MySQL, logs any status or decision changes, and writes `public/data/applications.geojson` for the map page. Visitors only ever load that static file; the council's server is queried once a day.
 
 | Source | What we use |
 | --- | --- |
@@ -95,9 +95,9 @@ Deployment and server tasks run from GitHub Actions over SSH (`deploy/ionos.sh`)
 | --- | --- |
 | `check` | Reports PHP version, rsync, cron, config and database status |
 | `deploy` | Copies the code to the server and updates the database tables |
-| `setup` | First-time setup: tables, first sync (back-fills history), nightly cron job at 05:17 server time |
+| `setup` | First-time setup: tables, first sync (back-fills history), cron jobs |
 | `sync` | Runs the sync now and reports the result |
-| `cron` | Installs the cron jobs: nightly sync 05:17, Monday digest 08:03 (server time, CET) |
+| `cron` | Installs the cron jobs: sync at 07:17 and 13:17, Monday digest at 08:03 (server time, CET; an hour ahead of the UK). The council's map service is off overnight, so the sync doesn't run earlier. |
 | `test-digest` | Sends this week's digest to nimby@parknews.co.uk only, marked [TEST] |
 | `signup-open`, `signup-close`, `signup-status` | Shows or hides the sign-up form; reports subscriber numbers (never addresses) |
 

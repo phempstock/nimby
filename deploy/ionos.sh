@@ -155,14 +155,16 @@ task_setup() {
   report "cd '$DEPLOY_PATH' && $PHP bin/healthcheck.php"
 }
 
-# Nightly sync at 05:17 and Monday digest at 08:03, server time (CET/CEST, one hour
-# ahead of the UK all year, so 04:17 and 07:03 UK time). Output goes to data/cache/*.log.
+# Sync twice a day at 07:17 and 13:17, and the Monday digest at 08:03, server time
+# (CET/CEST, one hour ahead of the UK all year, so 06:17, 12:17 and 07:03 UK time).
+# Not earlier: the council's map service is switched off overnight (it was down at
+# 05:17 CET on 28 and 29 Oct 2026). Output goes to data/cache/*.log.
 install_cron() {
   remote "dir=\$(cd ~/'$DEPLOY_PATH' && pwd) \
-    && sync=\"17 5 * * * $PHP \$dir/bin/sync.php >> \$dir/data/cache/sync.log 2>&1 $CRON_TAG\" \
+    && sync=\"17 7,13 * * * $PHP \$dir/bin/sync.php >> \$dir/data/cache/sync.log 2>&1 $CRON_TAG\" \
     && digest=\"3 8 * * 1 $PHP \$dir/bin/send-digest.php >> \$dir/data/cache/digest.log 2>&1 $DIGEST_TAG\" \
     && (crontab -l 2>/dev/null | grep -vF '$CRON_TAG' | grep -vF '$DIGEST_TAG'; echo \"\$sync\"; echo \"\$digest\") | crontab -"
-  note "Cron jobs: $(remote "crontab -l 2>/dev/null | grep -cF -e '$CRON_TAG' -e '$DIGEST_TAG'") installed (nightly sync 05:17, Monday digest 08:03, server time)"
+  note "Cron jobs: $(remote "crontab -l 2>/dev/null | grep -cF -e '$CRON_TAG' -e '$DIGEST_TAG'") installed (sync 07:17 and 13:17, Monday digest 08:03, server time)"
 }
 
 task_cron() {
