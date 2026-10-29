@@ -76,6 +76,7 @@ final class Status
         'application returned'                    => self::WITHDRAWN,
         'returned incomplete or invalid'          => self::WITHDRAWN,
         'insufficient fee'                        => self::WITHDRAWN,
+        'application lapsed'                      => self::WITHDRAWN,
 
         // Recognised, but not a simple yes/no
         'part refused and part granted'           => self::OTHER,

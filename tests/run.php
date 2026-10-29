@@ -165,6 +165,7 @@ test('Status categories, types and slugs', function () {
     check(Status::category('Granted conditional permission', 'Grant conditional permission') === Status::GRANTED, 'granted');
     check(Status::category('Refused consent', null) === Status::REFUSED, 'refused');
     check(Status::category('Application withdrawn', null) === Status::WITHDRAWN, 'withdrawn');
+    check(Status::category('Application lapsed', null) === Status::WITHDRAWN, 'lapsed counts as withdrawn (seen in the 50 m margin)');
     check(Status::category(null, 'Approve') === Status::GRANTED, 'falls back to decision when status is empty');
     check(Status::category(null, null, null) === Status::PENDING, 'no status, no decision = pending');
     check(Status::category('Something new', null) === Status::OTHER, 'unknown wording = other');
