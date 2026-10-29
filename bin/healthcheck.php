@@ -55,6 +55,11 @@ try {
     if ($run && $run['status'] !== 'ok') {
         $ok = false;
     }
+    $since = gmdate('Y-m-d H:i:s', time() - 4 * 86400);
+    $recent = $pdo->prepare('SELECT started_at, status FROM sync_runs WHERE started_at >= ? ORDER BY id');
+    $recent->execute([$since]);
+    $runs = array_map(fn($r) => substr($r['started_at'], 5, 11) . ' ' . $r['status'], $recent->fetchAll());
+    $lines[] = 'Sync runs in the last 4 days (UTC): ' . ($runs ? implode('; ', $runs) : 'none');
 } catch (PDOException $e) {
     $lines[] = 'Tables: not created yet (run the setup task)';
     $ok = false;
