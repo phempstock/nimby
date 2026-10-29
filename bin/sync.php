@@ -18,6 +18,7 @@ use Nimby\Export\GeoJsonExporter;
 use Nimby\Http\CurlHttpClient;
 use Nimby\Storage\ApplicationStore;
 use Nimby\Storage\Database;
+use Nimby\Subscribers\SubscriberStore;
 use Nimby\Support\Alerter;
 use Nimby\SyncJob;
 
@@ -75,6 +76,17 @@ try {
 
     $summary = $job->run(isset($options['refresh-boundary']));
     echo implode("\n", $summary['log']), "\n";
+
+    // Delete what the privacy notice promises to delete (stale sign-ups, old unsubscribes).
+    try {
+        $purged = (new SubscriberStore($pdo))->purge(gmdate('Y-m-d H:i:s'));
+        if ($purged['pending'] || $purged['unsubscribed']) {
+            printf("Deleted %d unconfirmed sign-ups and %d unsubscribed addresses, as the privacy notice says\n",
+                $purged['pending'], $purged['unsubscribed']);
+        }
+    } catch (PDOException $e) {
+        echo "Subscriber clean-up skipped: email tables not created yet\n";
+    }
     printf("Peak memory %d MB\n", (int) round(memory_get_peak_usage(true) / 1048576));
     exit(0);
 } catch (Throwable $e) {

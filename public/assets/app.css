@@ -387,3 +387,61 @@ input[type="search"]::placeholder { color: #7d8984; }
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
   overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
 }
+
+/* ---------- Weekly email sign-up ---------- */
+
+.masthead-signup { margin: 0.55rem 0 0; }
+.masthead-signup a { color: #f7d98a; font-weight: 700; text-underline-offset: 0.18em; }
+
+.signup {
+  margin: 0.5rem 1.5rem 1.2rem;
+  padding: 1.1rem 1.2rem 1.2rem;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-left: 4px solid var(--gas);
+  border-radius: var(--radius);
+}
+.signup h2 { margin: 0 0 0.35rem; font-size: 1.2rem; color: var(--railing); }
+.signup > p { margin: 0 0 0.9rem; color: #34413c; }
+.signup a { color: var(--railing); font-weight: 700; text-underline-offset: 0.18em; }
+.signup-form { display: grid; gap: 0.75rem; }
+.signup-form input[type="email"], .signup-form input[type="text"] {
+  width: 100%; font: inherit; font-size: 1rem; color: var(--ink);
+  background: var(--paper); border: 1px solid #b9c1bb; border-radius: var(--radius);
+  padding: 0.5rem 0.65rem; min-height: 2.6rem;
+}
+.optional { font-weight: 400; color: var(--muted); }
+.consent { align-items: flex-start; font-size: 0.97rem; }
+.consent input { margin-top: 0.2rem; }
+.hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+.signup-button {
+  justify-self: start;
+  font: inherit; font-weight: 700;
+  color: var(--limestone); background: var(--railing);
+  border: 0; border-radius: var(--radius);
+  padding: 0.6rem 1.1rem; cursor: pointer;
+}
+.signup-button:hover { background: var(--railing-soft); }
+.signup-button:disabled { opacity: 0.7; cursor: progress; }
+.signup-result { margin: 0; }
+.signup-result:empty { display: none; }
+.signup-result.is-ok { color: var(--railing); font-weight: 700; }
+.signup-result.is-error { color: var(--refused); font-weight: 700; }
+
+/* ---------- Plain pages (confirm, unsubscribe, privacy) ---------- */
+
+.page .masthead { padding: 1.1rem 1.5rem 1rem; }
+.wordmark-link { color: inherit; text-decoration: none; }
+.wordmark-link .wordmark { display: inline-block; font-weight: 800; font-size: 2.35rem; line-height: 1; letter-spacing: 0.08em; }
+.page-main { max-width: 40rem; margin: 0 auto; padding: 1.8rem 1.5rem 3rem; }
+.page-title { margin: 0 0 1rem; font-size: 1.7rem; line-height: 1.2; color: var(--railing); }
+.page-main h2 { margin: 1.6rem 0 0.4rem; font-size: 1.2rem; color: var(--railing); }
+.page-main p, .page-main li { max-width: 36rem; }
+.page-main a { color: var(--railing); font-weight: 700; text-underline-offset: 0.18em; }
+.page-lead { font-size: 1.1rem; }
+.page-form { margin: 1.2rem 0; }
+.page-button {
+  font: inherit; font-weight: 700; color: var(--limestone); background: var(--railing);
+  border: 0; border-radius: var(--radius); padding: 0.7rem 1.2rem; cursor: pointer;
+}
+.page-back { margin-top: 2rem; }

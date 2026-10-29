@@ -12,6 +12,11 @@ on:
           - deploy
           - setup
           - sync
+          - cron
+          - test-digest
+          - signup-status
+          - signup-open
+          - signup-close
         default: check
 
 concurrency: ionos-server

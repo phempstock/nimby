@@ -22,10 +22,39 @@ Once a night, `bin/sync.php` asks Nottingham City Council's public map server fo
 - The council truncates `PROPOSAL` at 300 characters; the full text is on Public Access.
 - The full map file is about 4 MB, or 0.5 MB compressed (compression is set in `public/.htaccess`).
 
+## Weekly email
+
+Residents sign up on the map page (double opt-in: they must press a button on the confirmation page). On Monday mornings `bin/send-digest.php` emails each subscriber the applications first seen since the previous digest, with links to their pins and to the council's case files. Nothing is sent in a week with no new applications.
+
+- **Sending:** through IONOS's mail server as nimby@parknews.co.uk, with PHPMailer (`lib/phpmailer/`). IONOS signs messages with the domain's DKIM key; SPF and DMARC are already set up for parknews.co.uk.
+- **Settings:** in `config.mail.php`, next to `config.php` on the server (not in git); see the "Mail settings" section below.
+- **Unsubscribe:** a signed link in every email, plus `List-Unsubscribe` headers so email programs show their own unsubscribe button (one-click, RFC 8058).
+- **Safe re-runs:** every send is recorded; an interrupted run finishes next time without emailing anyone twice. It stops after 3 failures in a row and emails the admin.
+- **Privacy:** `public/privacy.php`. Unconfirmed sign-ups are deleted after 7 days and unsubscribed addresses after 30 (by the nightly sync). IP addresses are kept only as keyed hashes, for a day, to rate-limit the form. Script output never contains subscribers' addresses.
+- **Sign-up switch:** the form shows only when sign-up is open: **Actions > Server tasks > signup-open / signup-close / signup-status**.
+- **Test digest:** **Server tasks > test-digest** sends this week's digest to nimby@parknews.co.uk only, marked [TEST].
+
+### Mail settings
+
+`config.mail.php` (keep it out of git):
+
+```php
+<?php
+return [
+    'mail' => [
+        'host' => 'smtp.ionos.co.uk', 'port' => 587, 'encryption' => 'tls',
+        'username' => 'nimby@parknews.co.uk', 'password' => '...',
+        'from_email' => 'nimby@parknews.co.uk', 'from_name' => 'NIMBY – Planning watch for The Park',
+        'reply_to' => 'nimby@parknews.co.uk',
+    ],
+];
+```
+
 ## Project layout
 
 ```
-bin/         sync.php (nightly), migrate.php (creates tables)
+bin/         sync.php (nightly), send-digest.php (Mondays), migrate.php (tables),
+             signup.php (open/close sign-up), healthcheck.php
 src/         Council API client, storage, map-file export
 migrations/  database schema (MySQL for IONOS, SQLite for tests)
 public/      web root: the site, plus data/ written by the sync
@@ -68,6 +97,9 @@ Deployment and server tasks run from GitHub Actions over SSH (`deploy/ionos.sh`)
 | `deploy` | Copies the code to the server and updates the database tables |
 | `setup` | First-time setup: tables, first sync (back-fills history), nightly cron job at 05:17 server time |
 | `sync` | Runs the sync now and reports the result |
+| `cron` | Installs the cron jobs: nightly sync 05:17, Monday digest 08:03 (server time, CET) |
+| `test-digest` | Sends this week's digest to nimby@parknews.co.uk only, marked [TEST] |
+| `signup-open`, `signup-close`, `signup-status` | Shows or hides the sign-up form; reports subscriber numbers (never addresses) |
 
 Every push to `main` also deploys automatically once both test jobs pass. Deployment uses `rsync --delete`, but never touches the server's `config.php`, its `data/` folder (database cache and `sync.log`) or the generated map data. Without rsync it falls back to `tar`.
 
@@ -120,7 +152,7 @@ Leaflet, marker clustering and the Alegreya Sans font are served from `public/ve
 - [x] Phase 0: data checks
 - [x] Phase 1: nightly sync, live on IONOS since 27 October 2026
 - [x] Phase 2: map page (Leaflet + OpenStreetMap, pins by status, popups, filters, list, deep links `/?app=26-01848-PWC`)
-- [ ] Phase 3: subscriptions and the Monday digest of new applications
+- [x] Phase 3: subscriptions and the Monday digest (built; sign-up opens after test digests are checked)
 - [ ] Phase 4: launch
 
 ## Data licence

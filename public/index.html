@@ -20,6 +20,7 @@
       <h1 class="wordmark">NIMBY</h1>
       <p class="strap">Planning watch for The Park</p>
       <p class="fresh" id="fresh" aria-live="polite">Loading applications from the council data…</p>
+      <p class="masthead-signup" id="masthead-signup" hidden><a href="#signup">Get the weekly email</a></p>
     </header>
 
     <main class="map-wrap">
@@ -67,11 +68,36 @@
         <button type="button" class="more" id="more" hidden>Show more</button>
       </section>
 
+      <section class="signup" id="signup" aria-labelledby="signup-heading" hidden>
+        <h2 id="signup-heading">Get the weekly email</h2>
+        <p>On Monday mornings, a list of new planning applications in and around The Park, with links to the map and the council’s case files. Nothing is sent in weeks with no new applications.</p>
+        <form class="signup-form" id="signup-form" action="subscribe.php" method="post" novalidate>
+          <div class="field">
+            <label for="su-email">Email address</label>
+            <input id="su-email" name="email" type="email" autocomplete="email" required maxlength="254">
+          </div>
+          <div class="field">
+            <label for="su-name">Name <span class="optional">(optional)</span></label>
+            <input id="su-name" name="name" type="text" autocomplete="name" maxlength="100">
+          </div>
+          <div class="hp" aria-hidden="true">
+            <label for="su-website">Leave this empty</label>
+            <input id="su-website" name="website" type="text" tabindex="-1" autocomplete="off">
+          </div>
+          <label class="toggle consent">
+            <input type="checkbox" name="consent" value="yes" required>
+            <span>Send me the weekly email. I’ve read the <a href="privacy.php">privacy notice</a>.</span>
+          </label>
+          <button type="submit" class="signup-button">Sign up</button>
+          <p class="signup-result" id="signup-result" role="status" aria-live="polite"></p>
+        </form>
+      </section>
+
       <footer class="credits">
         <p id="area-note" hidden></p>
         <p>Pins show where the council has placed each application; positions are approximate. The council’s case file is the official record.</p>
-        <p>A weekly email of new applications is coming soon.</p>
         <p>Planning data from Nottingham City Council under the Open Government Licence. © Crown copyright and database rights, OS AC0000822898. Map © OpenStreetMap contributors.</p>
+        <p><a href="privacy.php">Privacy notice</a>. This site sets no cookies.</p>
       </footer>
     </aside>
   </div>

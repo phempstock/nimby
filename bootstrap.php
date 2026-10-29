@@ -8,6 +8,17 @@ declare(strict_types=1);
 
 date_default_timezone_set('Europe/London');
 
+// PHPMailer, vendored in lib/phpmailer/ (see lib/phpmailer/VERSION.txt).
+spl_autoload_register(static function (string $class): void {
+    $prefix = 'PHPMailer\\PHPMailer\\';
+    if (strncmp($class, $prefix, strlen($prefix)) === 0) {
+        $file = __DIR__ . '/lib/phpmailer/' . substr($class, strlen($prefix)) . '.php';
+        if (is_file($file)) {
+            require $file;
+        }
+    }
+});
+
 spl_autoload_register(static function (string $class): void {
     $prefix = 'Nimby\\';
     if (strncmp($class, $prefix, strlen($prefix)) !== 0) {
@@ -33,5 +44,20 @@ function nimby_config(?string $path = null): array
     if (!is_array($config)) {
         throw new RuntimeException("Configuration file must return an array: {$path}");
     }
+    // Optional second file for the mail settings, so the password can be added
+    // without editing config.php. Its values override config.php's.
+    $mailFile = dirname($path) . '/config.mail.php';
+    if (is_file($mailFile)) {
+        $mail = require $mailFile;
+        if (is_array($mail)) {
+            $config = array_replace_recursive($config, $mail);
+        }
+    }
+    // Defaults for settings added after the site went live.
+    $config['site'] = ($config['site'] ?? []) + [
+        'url'           => 'https://nimby.parknews.co.uk',
+        'organisation'  => 'The Park Estate Residents\' Association',
+        'contact_email' => 'nimby@parknews.co.uk',
+    ];
     return $config;
 }

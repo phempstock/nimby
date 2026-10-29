@@ -475,6 +475,74 @@
     el.notice.hidden = false;
   }
 
+  // ---------- Weekly email sign-up ----------
+
+  function setUpSignup() {
+    var section = document.getElementById('signup');
+    var form = document.getElementById('signup-form');
+    var result = document.getElementById('signup-result');
+    if (!section || !form) return;
+
+    fetch('subscribe.php?status', { headers: { Accept: 'application/json' }, cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.json() : { open: false }; })
+      .then(function (s) {
+        if (!s.open) return;
+        section.hidden = false;
+        document.getElementById('masthead-signup').hidden = false;
+      })
+      .catch(function () { /* PHP unavailable: leave the form hidden */ });
+
+    // Clear a warning as soon as the person changes what it was about.
+    form.addEventListener('input', function () {
+      if (result.classList.contains('is-error')) {
+        result.textContent = '';
+        result.className = 'signup-result';
+      }
+    });
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var email = form.elements.email.value.trim();
+      result.className = 'signup-result';
+      if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+        result.textContent = 'Enter a valid email address, like name@example.com.';
+        result.classList.add('is-error');
+        form.elements.email.focus();
+        return;
+      }
+      if (!form.elements.consent.checked) {
+        result.textContent = 'Tick the box to agree to receive the email.';
+        result.classList.add('is-error');
+        form.elements.consent.focus();
+        return;
+      }
+      var button = form.querySelector('button[type="submit"]');
+      button.disabled = true;
+      button.textContent = 'Signing up…';
+      fetch('subscribe.php', { method: 'POST', body: new FormData(form), headers: { Accept: 'application/json' } })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          result.textContent = data.message;
+          if (data.ok) {
+            result.classList.add('is-ok');
+            Array.prototype.forEach.call(form.querySelectorAll('.field, .consent, button'), function (n) { n.hidden = true; });
+          } else {
+            result.classList.add('is-error');
+          }
+        })
+        .catch(function () {
+          result.textContent = 'Sign-up didn’t go through. Check your connection and try again.';
+          result.classList.add('is-error');
+        })
+        .then(function () {
+          button.disabled = false;
+          button.textContent = 'Sign up';
+        });
+    });
+  }
+
+  setUpSignup();
+
   // ---------- Start ----------
 
   function getJson(path) {

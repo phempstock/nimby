@@ -24,7 +24,7 @@ $ok = true;
 
 $extensions = array_map(
     static fn(string $e) => $e . (extension_loaded($e) ? ' yes' : ' MISSING'),
-    ['curl', 'pdo_mysql', 'json', 'mbstring']
+    ['curl', 'pdo_mysql', 'json', 'mbstring', 'openssl']
 );
 $lines[] = 'PHP extensions: ' . implode(', ', $extensions);
 
@@ -58,6 +58,19 @@ try {
 } catch (PDOException $e) {
     $lines[] = 'Tables: not created yet (run the setup task)';
     $ok = false;
+}
+
+try {
+    $c = (new \Nimby\Subscribers\SubscriberStore($pdo))->counts();
+    $open = (new \Nimby\Storage\Settings($pdo))->signupOpen();
+    $lines[] = sprintf('Weekly email: sign-up %s; %d subscribers, %d awaiting confirmation',
+        $open ? 'open' : 'closed', $c['active'], $c['pending']);
+    $d = $pdo->query('SELECT created_at, status, applications FROM digests ORDER BY id DESC LIMIT 1')->fetch();
+    $lines[] = $d ? sprintf('Last digest: %s UTC, %s, %d applications', $d['created_at'], $d['status'], $d['applications'])
+                  : 'Last digest: none yet';
+    $lines[] = 'Mail settings: ' . (empty($config['mail']['password']) ? 'not set (upload config.mail.php)' : 'set');
+} catch (PDOException $e) {
+    $lines[] = 'Weekly email: tables not created yet';
 }
 
 $meta = rtrim($config['paths']['public_data'], '/') . '/meta.json';

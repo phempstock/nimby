@@ -80,6 +80,14 @@ jobs:
           for i in $(seq 1 50); do curl -s -o /dev/null http://127.0.0.1:8123/ && break; sleep 0.2; done
           node tests/browser/map.test.js http://127.0.0.1:8123 public/data
 
+      - name: Run email walk-through (sign up, confirm, digest, unsubscribe)
+        run: |
+          SITE="$RUNNER_TEMP/email-site"
+          bash tests/browser/email-setup.sh "$SITE" http://127.0.0.1:8130
+          php -S 127.0.0.1:8130 -t "$SITE/public" > "$RUNNER_TEMP/php-email.log" 2>&1 &
+          for i in $(seq 1 50); do curl -s -o /dev/null http://127.0.0.1:8130/ && break; sleep 0.2; done
+          node tests/browser/email.test.js http://127.0.0.1:8130 "$SITE"
+
   # Copies the site to IONOS after all test jobs pass on main (see deploy/ionos.sh).
   # Skipped, with a notice, until the IONOS_SSH_HOST, IONOS_SSH_USER and
   # IONOS_SSH_KEY repository secrets exist.
