@@ -1,6 +1,6 @@
 # NIMBY – Planning watch for The Park
 
-A map of planning applications in The Park Conservation Area, Nottingham, with a weekly email of new applications. Run by the Park Estate Residents' Association at [nimby.parknews.co.uk](https://nimby.parknews.co.uk).
+A map of planning applications in The Park Conservation Area, Nottingham, with a weekly email of new applications. Run by the Nottingham Park Residents' Association (NPRA) at [nimby.parknews.co.uk](https://nimby.parknews.co.uk).
 
 ## How it works
 

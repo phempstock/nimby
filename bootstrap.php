@@ -56,7 +56,7 @@ function nimby_config(?string $path = null): array
     // Defaults for settings added after the site went live.
     $config['site'] = ($config['site'] ?? []) + [
         'url'           => 'https://nimby.parknews.co.uk',
-        'organisation'  => 'The Park Estate Residents\' Association',
+        'organisation'  => 'the Nottingham Park Residents\' Association (NPRA)',
         'contact_email' => 'nimby@parknews.co.uk',
     ];
     return $config;

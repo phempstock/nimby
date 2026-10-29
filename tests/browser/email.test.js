@@ -111,7 +111,7 @@ const mails = () => fs.existsSync(DIR + '/data/cache/mail.log')
 
   console.log('- Privacy notice');
   await p.goto(BASE + '/privacy.php');
-  check(/The Park Estate Residents’ Association|The Park Estate Residents' Association/.test(await p.textContent('main')), 'names the organisation');
+  check(/Nottingham Park Residents' Association \(NPRA\)/.test(await p.textContent('main')), 'names the organisation');
   check(/deleted after 7 days/.test(await p.textContent('main')) && /deleted after 30 days/.test(await p.textContent('main')), 'states the deletion periods the code applies');
   await p.screenshot({ path: SHOTS + '/privacy.png', fullPage: true });
 

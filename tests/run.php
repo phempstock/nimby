@@ -578,7 +578,7 @@ function digestSender(array $h, array $kit, int $maxPerRun = 200): DigestSender
 {
     $builder = new DigestBuilder('https://nimby.parknews.co.uk',
         'https://publicaccess.nottinghamcity.gov.uk/online-applications/applicationDetails.do?activeTab=summary&keyVal=', 50,
-        "The Park Estate Residents' Association");
+        "the Nottingham Park Residents' Association (NPRA)");
     return new DigestSender($h['pdo'], $kit['store'], $kit['signup'], $kit['mailer'], $builder, $h['coreArea'], $maxPerRun, 0);
 }
 
