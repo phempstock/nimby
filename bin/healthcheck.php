@@ -60,6 +60,10 @@ try {
     $recent->execute([$since]);
     $runs = array_map(fn($r) => substr($r['started_at'], 5, 11) . ' ' . $r['status'], $recent->fetchAll());
     $lines[] = 'Sync runs in the last 4 days (UTC): ' . ($runs ? implode('; ', $runs) : 'none');
+    $failed = $pdo->query("SELECT started_at, message FROM sync_runs WHERE status = 'failed' ORDER BY id DESC LIMIT 1")->fetch();
+    if ($failed) {
+        $lines[] = 'Last failed sync (' . $failed['started_at'] . ' UTC): ' . str_replace("\n", ' / ', (string) $failed['message']);
+    }
 } catch (PDOException $e) {
     $lines[] = 'Tables: not created yet (run the setup task)';
     $ok = false;
